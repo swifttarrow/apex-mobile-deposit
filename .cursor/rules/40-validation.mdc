@@ -1,0 +1,37 @@
+---
+description: Validation phase—verify implementation against plan
+alwaysApply: false
+globs: thoughts/plans/**/*,thoughts/handoffs/**/*
+---
+
+# Validation Phase
+
+When validating an implementation:
+
+## Systematic Validation
+
+For each plan phase:
+1. Verify checkmarks match actual completion
+2. Run all automated verification commands
+3. List manual testing steps for the user
+4. Consider edge cases and regressions
+
+## Validation Report Structure
+
+- Implementation status per phase
+- Automated verification results (pass/fail)
+- Code review: matches plan, deviations, potential issues
+- Manual testing required
+- Recommendations
+
+## Checklist
+
+- [ ] All phases marked complete are actually done
+- [ ] Automated tests pass
+- [ ] Code follows existing patterns
+- [ ] No regressions introduced
+- [ ] Error handling is robust
+
+## Recommended Order
+
+1. Implement → 2. Commit → 3. Validate → 4. PR description

@@ -1,0 +1,40 @@
+---
+description: Planning phase—create detailed implementation plans
+alwaysApply: false
+globs: thoughts/plans/**/*
+---
+
+# Planning Phase
+
+When creating implementation plans:
+
+## Be Skeptical & Interactive
+
+- Question vague requirements; verify with code
+- Don't write the full plan in one shot—get buy-in at each step
+- Read all context files completely before planning
+- No open questions in the final plan—resolve before finalizing
+
+## Plan Structure
+
+Plans go in `thoughts/plans/` as `YYYY-MM-DD-description.md`
+
+Each phase must include:
+- **Automated Verification**: Commands to run (`make test`, `npm run lint`, etc.)
+- **Manual Verification**: Steps requiring human testing
+
+## Success Criteria Format
+
+```markdown
+#### Automated Verification:
+- [ ] Tests pass: `make test`
+- [ ] Lint passes: `make lint`
+
+#### Manual Verification:
+- [ ] Feature works as expected in UI
+- [ ] Edge cases verified
+```
+
+## What We're NOT Doing
+
+Explicitly list out-of-scope items to prevent scope creep.

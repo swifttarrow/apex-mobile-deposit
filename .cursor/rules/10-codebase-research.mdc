@@ -1,0 +1,33 @@
+---
+description: Codebase research phase—document what exists, no suggestions
+alwaysApply: false
+globs: thoughts/research/**/*
+---
+
+# Codebase Research Phase
+
+When conducting research:
+
+## Core Rule: Document, Don't Evaluate
+
+- **DO** describe what exists, where it exists, how it works
+- **DO NOT** suggest improvements, refactors, or optimizations
+- **DO NOT** perform root cause analysis unless explicitly asked
+- **DO NOT** critique the implementation
+
+You are creating a technical map of the existing system.
+
+## Research Output
+
+Save findings to `thoughts/research/` with format:
+`YYYY-MM-DD-description.md`
+
+Include:
+- Summary answering the research question
+- Detailed findings with file:line references
+- Architecture documentation
+- Related research links
+
+## Sub-agent Usage
+
+Use parallel sub-tasks to research different aspects concurrently. Keep the main agent focused on synthesis.

@@ -1,0 +1,37 @@
+---
+description: Research-Plan-Implement-Validate agent workflow (HumanLayer-inspired)
+alwaysApply: true
+---
+
+# Agent Workflow
+
+This project uses a **Research → Plan → Implement → Validate** workflow for complex tasks. Inspired by [HumanLayer's Advanced Context Engineering](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents).
+
+## Workflow Phases
+
+1. **Research** – Understand the codebase, find relevant files, document what exists (no code changes)
+2. **Plan** – Create a detailed implementation plan with phases and success criteria
+3. **Implement** – Execute the plan phase-by-phase, verifying each step
+4. **Validate** – Review implementation against the plan, run checks, identify gaps
+
+## Key Principles
+
+- **Context management**: Keep context utilization in 40–60% range; compact between phases
+- **Frequent intentional compaction**: Distill findings into structured artifacts in `thoughts/`
+- **Human leverage**: Review research and plans before implementation—highest leverage points
+- **Specs as source of truth**: Plans and research documents guide implementation
+
+## Artifact Locations
+
+- Research: `thoughts/research/`
+- Plans: `thoughts/plans/`
+- Handoffs: `thoughts/handoffs/`
+
+## When to Use
+
+- Complex features or refactors
+- Brownfield codebase changes
+- Multi-file implementations
+- When you need mental alignment across sessions
+
+For simple, single-file changes, you may skip directly to implementation.
