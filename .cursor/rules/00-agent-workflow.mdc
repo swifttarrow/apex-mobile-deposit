@@ -29,9 +29,9 @@ This project uses a **Research → Plan → Implement → Validate** workflow fo
 
 ## When to Use
 
+- **Greenfield projects only** (new codebases)
 - Complex features or refactors
-- Brownfield codebase changes
 - Multi-file implementations
 - When you need mental alignment across sessions
 
-For simple, single-file changes, you may skip directly to implementation.
+For brownfield codebases or simple, single-file changes, use a different approach or skip directly to implementation.
