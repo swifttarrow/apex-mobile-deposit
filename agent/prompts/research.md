@@ -245,6 +245,17 @@ Then be prepared to **iterate deeply on individual subsystems**, such as:
 
 ---
 
+# Research Output Requirements
+
+Research is complete when you **commit to architecture decisions** and **document the rationale** for each. Output must include:
+
+1. **Decision** — A clear, actionable choice (e.g., "MediaPipe Face Landmarker in-browser", not "MediaPipe or OpenCV").
+2. **Rationale** — The "why": constraints that drove the choice, tradeoffs accepted, and what we're optimizing for.
+
+Findings alone are insufficient. Each discovery point must conclude with a locked decision + rationale before handoff to Planning.
+
+---
+
 # Output Style
 
 * Use **structured sections**
