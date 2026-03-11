@@ -8,13 +8,13 @@
 
 | # | Milestone | Status |
 |---|-----------|--------|
-| 1 | [01-project-setup-transfer-state-machine](./01-project-setup-transfer-state-machine/) | Pending |
-| 2 | [02-vendor-service-stub](./02-vendor-service-stub/) | Pending |
-| 3 | [03-funding-service-ledger](./03-funding-service-ledger/) | Pending |
-| 4 | [04-deposit-submission-flow](./04-deposit-submission-flow/) | Pending |
-| 5 | [05-operator-workflow](./05-operator-workflow/) | Pending |
-| 6 | [06-settlement-return-reversal](./06-settlement-return-reversal/) | Pending |
-| 7 | [07-demo-tests-deployment-full-deliverable](./07-demo-tests-deployment-full-deliverable/) | Pending |
+| 1 | [01-project-setup-transfer-state-machine](./01-project-setup-transfer-state-machine/) | Complete |
+| 2 | [02-vendor-service-stub](./02-vendor-service-stub/) | Complete |
+| 3 | [03-funding-service-ledger](./03-funding-service-ledger/) | Complete |
+| 4 | [04-deposit-submission-flow](./04-deposit-submission-flow/) | Complete |
+| 5 | [05-operator-workflow](./05-operator-workflow/) | Complete |
+| 6 | [06-settlement-return-reversal](./06-settlement-return-reversal/) | Mostly Complete |
+| 7 | [07-demo-tests-deployment-full-deliverable](./07-demo-tests-deployment-full-deliverable/) | Mostly Complete |
 
 ## Quick Links
 
