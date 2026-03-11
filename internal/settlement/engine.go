@@ -32,6 +32,8 @@ type SettlementEntry struct {
 	MICRAccount   string  `json:"micr_account,omitempty"`
 	CheckNumber   string  `json:"check_number,omitempty"`
 	TransactionID string  `json:"transaction_id,omitempty"`
+	FrontImageRef string  `json:"front_image_ref,omitempty"`
+	BackImageRef  string  `json:"back_image_ref,omitempty"`
 }
 
 // Engine generates settlement batches.
@@ -84,6 +86,9 @@ func (e *Engine) GenerateSettlementFile() (*SettlementFile, error) {
 			AccountID:     t.AccountID,
 			Amount:        t.Amount,
 			TransactionID: t.TransactionID,
+			// Image references for check detail records (format: transfer_id/image_type)
+			FrontImageRef: fmt.Sprintf("%s/front", t.ID),
+			BackImageRef:  fmt.Sprintf("%s/back", t.ID),
 		}
 
 		// Parse MICR data if available
