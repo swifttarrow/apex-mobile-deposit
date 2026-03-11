@@ -41,6 +41,7 @@
 
 ### L-003: No EOD Cutoff Enforcement at Deposit Time
 - Deposits submitted after 6:30 PM CT are accepted; they simply appear in the next settlement batch. Explicit user notification of next-day posting is not implemented.
+- Settlement trigger response includes `after_eod_cutoff` for observability; settlement proceeds regardless.
 
 ### L-004: No Idempotency Key Expiration
 - Cached idempotency responses are stored indefinitely. Production should expire keys after 24 hours per RFC guidance.

@@ -37,3 +37,18 @@
 **Date:** 2026-03-10
 **Decision:** All accounts default to `contribution_type = "individual"`
 **Rationale:** Business rules specify "individual" as the default for retirement accounts. Extended to all account types for consistency. Operator override is supported at approve time.
+
+## DL-008: Business rules before Approved transition
+**Date:** 2026-03-11
+**Decision:** Run session validation, eligibility, deposit limit, and duplicate checks while transfer is in Analyzing state, before transitioning to Approved.
+**Rationale:** Previously, business rules ran after transitioning to Approved, causing invalid state transitions (Approved→Rejected) when over-limit. Fix ensures Analyzing→Rejected for rule failures.
+
+## DL-009: Operator approve enforces deposit limit
+**Date:** 2026-03-11
+**Decision:** Operator approve endpoint validates deposit limit before posting ledger.
+**Rationale:** Flagged transfers bypass deposit-flow business rules; an over-limit flagged deposit could be approved. Config.CheckLimit added; operator approve rejects with 422 when over limit.
+
+## DL-010: EOD cutoff in settlement response
+**Date:** 2026-03-11
+**Decision:** Settlement trigger response includes `after_eod_cutoff` boolean; settlement still proceeds.
+**Rationale:** Enables monitoring and observability without blocking. Deposits after 6:30 PM CT roll to next business day per requirements; explicit flag supports operator awareness.
