@@ -38,8 +38,8 @@ func NewOperatorHandler(
 // QueueItem is a transfer enriched with risk scores for the operator queue.
 type QueueItem struct {
 	*transfer.Transfer
-	IQScore        float64 `json:"iq_score,omitempty"`
-	MICRConfidence float64 `json:"micr_confidence,omitempty"`
+	IQScore        float64 `json:"iq_score"`
+	MICRConfidence float64 `json:"micr_confidence"`
 }
 
 // Queue handles GET /operator/queue.
@@ -68,9 +68,20 @@ func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	items := make([]QueueItem, 0, len(transfers))
 	for _, t := range transfers {
 		item := QueueItem{Transfer: t}
-		// Populate risk scores from OCR data
-		if t.OCRAmount > 0 && t.EnteredAmount > 0 {
-			item.MICRConfidence = 0.0 // flagged = low confidence
+		// Parse vendor scores from vendor_response JSON
+		if t.VendorResponse != "" {
+			var scores struct {
+				IQScore        float64 `json:"iq_score"`
+				MICRConfidence float64 `json:"micr_confidence"`
+			}
+			if err := json.Unmarshal([]byte(t.VendorResponse), &scores); err == nil {
+				item.IQScore = scores.IQScore
+				item.MICRConfidence = scores.MICRConfidence
+			}
+		}
+		// Fallback: flagged transfers with amount mismatch have low MICR confidence
+		if item.MICRConfidence == 0 && t.OCRAmount > 0 && t.EnteredAmount > 0 {
+			item.MICRConfidence = 0.5
 		}
 		items = append(items, item)
 	}
@@ -117,6 +128,12 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	}
 	if t.State != transfer.StateAnalyzing {
 		writeError(w, http.StatusConflict, "transfer is not in Analyzing state")
+		return
+	}
+
+	// Apply business rules before approving (e.g. deposit limit for flagged transfers)
+	if err := h.fundingCfg.CheckLimit(t.Amount); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 

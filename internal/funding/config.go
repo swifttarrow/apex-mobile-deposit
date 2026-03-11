@@ -1,5 +1,7 @@
 package funding
 
+import "fmt"
+
 const DepositLimit = 5000.00
 const ReturnFee = 30.00
 
@@ -57,4 +59,12 @@ func (c *Config) GetAccountType(accountID string) string {
 func (c *Config) GetContributionDefault(accountID string) string {
 	_ = c.GetAccountType(accountID) // always individual for now
 	return "individual"
+}
+
+// CheckLimit returns an error if amount exceeds the deposit limit.
+func (c *Config) CheckLimit(amount float64) error {
+	if amount > c.DepositLimit {
+		return fmt.Errorf("deposit amount exceeds limit: %.2f > %.2f", amount, c.DepositLimit)
+	}
+	return nil
 }

@@ -82,6 +82,8 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create transfer")
 		return
 	}
+	t.FrontImagePath = req.FrontImage
+	t.BackImagePath = req.BackImage
 
 	// Step 2: Transition to Validating
 	if err := t.Transition(transfer.StateValidating); err != nil {
@@ -146,6 +148,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		t.OCRAmount = vendorResp.OCRAmount
 		t.EnteredAmount = vendorResp.EnteredAmount
+		t.VendorResponse = marshalVendorScores(vendorResp)
 		if err := h.transferRepo.UpdateTransferState(t); err != nil {
 			log.Printf("deposit: update analyzing state: %v", err)
 		}
@@ -160,7 +163,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		// Happy path — continue processing
 	}
 
-	// Step 6: Transition Validating→Analyzing→Approved
+	// Step 5: Transition Validating→Analyzing
 	if err := t.Transition(transfer.StateAnalyzing); err != nil {
 		log.Printf("deposit: transition to analyzing (pass): %v", err)
 		writeError(w, http.StatusInternalServerError, "state transition error")
@@ -174,31 +177,16 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		t.MICRData = string(micrJSON)
 	}
 	vendorTransactionID := vendorResp.TransactionID
-	// Save state (without transaction_id) — use a temporary blank to avoid premature write
-	savedTxnID := t.TransactionID
+	t.VendorResponse = marshalVendorScores(vendorResp)
 	t.TransactionID = "" // don't persist yet
 	if err := h.transferRepo.UpdateTransferState(t); err != nil {
 		log.Printf("deposit: update analyzing state: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to update state")
 		return
 	}
-	t.TransactionID = savedTxnID
-
-	if err := t.Transition(transfer.StateApproved); err != nil {
-		log.Printf("deposit: transition to approved: %v", err)
-		writeError(w, http.StatusInternalServerError, "state transition error")
-		return
-	}
-	t.TransactionID = "" // still don't persist
-	if err := h.transferRepo.UpdateTransferState(t); err != nil {
-		log.Printf("deposit: update approved state: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to update state")
-		return
-	}
 	t.TransactionID = vendorTransactionID // restore for business rules check
 
-	// Step 7: Business rules validation
-	// ValidateSession — use account ID as a proxy session
+	// Step 6: Business rules validation — MUST run before transitioning to Approved
 	if err := h.fundingSvc.ValidateSession(req.AccountID); err != nil {
 		h.rejectTransfer(t, "invalid session")
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
@@ -207,8 +195,6 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	// CheckEligibility
 	if err := h.fundingSvc.CheckEligibility(req.AccountID); err != nil {
 		h.rejectTransfer(t, "account not eligible")
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
@@ -217,8 +203,6 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	// CheckLimit
 	if err := h.fundingSvc.CheckLimit(req.Amount); err != nil {
 		h.rejectTransfer(t, "over limit")
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
@@ -227,8 +211,6 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	// CheckDuplicate — only check if we have a transaction ID
 	if t.TransactionID != "" {
 		if err := h.fundingSvc.CheckDuplicate(t.TransactionID); err != nil {
 			if errors.Is(err, funding.ErrDuplicate) {
@@ -242,7 +224,19 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Step 9: Apply contribution default
+	// Step 7: Transition Analyzing→Approved (all rules passed)
+	if err := t.Transition(transfer.StateApproved); err != nil {
+		log.Printf("deposit: transition to approved: %v", err)
+		writeError(w, http.StatusInternalServerError, "state transition error")
+		return
+	}
+	if err := h.transferRepo.UpdateTransferState(t); err != nil {
+		log.Printf("deposit: update approved state: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to update state")
+		return
+	}
+
+	// Step 8: Apply contribution default
 	t.ContributionType = h.fundingCfg.GetContributionDefault(req.AccountID)
 
 	// Step 10: Post ledger entry in DB transaction with state update
@@ -285,6 +279,20 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, t)
+}
+
+// vendorScoresJSON is stored in transfer.vendor_response for operator queue display.
+type vendorScoresJSON struct {
+	Status         string  `json:"status"`
+	Reason         string  `json:"reason,omitempty"`
+	IQScore        float64 `json:"iq_score,omitempty"`
+	MICRConfidence float64 `json:"micr_confidence,omitempty"`
+}
+
+func marshalVendorScores(r *vendor.VendorResponse) string {
+	v := vendorScoresJSON{Status: r.Status, Reason: r.Reason, IQScore: r.IQScore, MICRConfidence: r.MICRConfidence}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 // rejectTransfer transitions a transfer to Rejected state.
