@@ -117,4 +117,12 @@ func TestGenerateSettlementFile_WithTransfers(t *testing.T) {
 	if updated.SettlementBatchID == "" {
 		t.Error("expected settlement batch ID set")
 	}
+
+	// Verify settlement file contains image refs
+	if len(batch.Transfers) > 0 {
+		entry := batch.Transfers[0]
+		if entry.FrontImageRef != tr.ID+"/front" || entry.BackImageRef != tr.ID+"/back" {
+			t.Errorf("expected image refs, got front=%q back=%q", entry.FrontImageRef, entry.BackImageRef)
+		}
+	}
 }

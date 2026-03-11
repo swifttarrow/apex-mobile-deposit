@@ -89,6 +89,16 @@ func TestOperator_FlaggedInQueue(t *testing.T) {
 		item := tr.(map[string]interface{})
 		if item["id"] == id {
 			found = true
+			// Verify check images and risk scores are present
+			if item["front_image_path"] == "" || item["back_image_path"] == "" {
+				t.Error("expected front_image_path and back_image_path in queue item")
+			}
+			if _, ok := item["iq_score"]; !ok {
+				t.Error("expected iq_score in queue item")
+			}
+			if _, ok := item["micr_confidence"]; !ok {
+				t.Error("expected micr_confidence in queue item")
+			}
 		}
 	}
 	if !found {
@@ -145,6 +155,45 @@ func TestOperator_Reject(t *testing.T) {
 	json.Unmarshal(rr.Body.Bytes(), &result)
 	if result["state"] != "Rejected" {
 		t.Errorf("expected Rejected, got %v", result["state"])
+	}
+}
+
+func TestOperator_ApproveOverLimit(t *testing.T) {
+	mux := setupOperatorTestMux(t)
+	// Submit flagged deposit with amount over $5000 limit (flagged path skips business rules)
+	body := map[string]interface{}{
+		"account_id":  "ACC-MICR-FAIL",
+		"amount":      6000.00,
+		"front_image": "front",
+		"back_image":  "back",
+	}
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/deposits", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 (flagged), got %d: %s", rr.Code, rr.Body.String())
+	}
+	var depositResult map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &depositResult)
+	tr := depositResult["transfer"].(map[string]interface{})
+	id := tr["id"].(string)
+
+	// Operator approve should fail with 422 (over limit)
+	approveBody := map[string]interface{}{
+		"transfer_id": id,
+		"operator_id": "op-001",
+		"note":        "attempted approval",
+	}
+	b, _ = json.Marshal(approveBody)
+	req = httptest.NewRequest(http.MethodPost, "/operator/approve", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422 (over limit), got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 
