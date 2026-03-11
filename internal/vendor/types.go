@@ -19,13 +19,14 @@ type MICRData struct {
 // VendorResponse is the response from the vendor check analysis service.
 type VendorResponse struct {
 	// Status: "pass", "fail", "flagged", "reject"
-	Status        string   `json:"status"`
-	Reason        string   `json:"reason,omitempty"`
-	Message       string   `json:"message,omitempty"`
-	IQScore       float64  `json:"iqScore,omitempty"`
-	MICR          *MICRData `json:"micr,omitempty"`
-	Amount        float64  `json:"amount,omitempty"`
-	OCRAmount     float64  `json:"ocrAmount,omitempty"`
-	EnteredAmount float64  `json:"enteredAmount,omitempty"`
-	TransactionID string   `json:"transactionId,omitempty"`
+	Status          string     `json:"status"`
+	Reason          string     `json:"reason,omitempty"`
+	Message         string     `json:"message,omitempty"`
+	IQScore         float64    `json:"iqScore,omitempty"`
+	MICRConfidence  float64    `json:"micrConfidence,omitempty"`
+	MICR            *MICRData  `json:"micr,omitempty"`
+	Amount          float64    `json:"amount,omitempty"`
+	OCRAmount       float64    `json:"ocrAmount,omitempty"`
+	EnteredAmount   float64    `json:"enteredAmount,omitempty"`
+	TransactionID   string     `json:"transactionId,omitempty"`
 }

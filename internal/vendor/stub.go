@@ -95,8 +95,10 @@ func buildResponse(scenario string, req *VendorRequest) *VendorResponse {
 		}
 	case "micr_fail":
 		return &VendorResponse{
-			Status: "flagged",
-			Reason: "micr_fail",
+			Status:         "flagged",
+			Reason:         "micr_fail",
+			IQScore:        0.85,
+			MICRConfidence: 0.0,
 		}
 	case "duplicate":
 		return &VendorResponse{
@@ -105,19 +107,24 @@ func buildResponse(scenario string, req *VendorRequest) *VendorResponse {
 		}
 	case "amount_mismatch":
 		return &VendorResponse{
-			Status:        "flagged",
-			Reason:        "amount_mismatch",
-			OCRAmount:     150.00,
-			EnteredAmount: 1500.00,
+			Status:         "flagged",
+			Reason:         "amount_mismatch",
+			IQScore:        0.90,
+			MICRConfidence: 0.5,
+			OCRAmount:      150.00,
+			EnteredAmount:  1500.00,
 		}
 	case "iqapass":
 		return &VendorResponse{
-			Status:  "pass",
-			IQScore: 0.95,
+			Status:         "pass",
+			IQScore:        0.95,
+			MICRConfidence: 0.95,
 		}
 	default: // clean_pass
 		return &VendorResponse{
 			Status: "pass",
+			IQScore:        0.95,
+			MICRConfidence: 0.98,
 			MICR: &MICRData{
 				Routing:     "021000021",
 				Account:     "1234567890",
