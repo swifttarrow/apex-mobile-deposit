@@ -1,0 +1,13 @@
+{
+  "scenarios": {
+    "ACC-IQA-BLUR": "iqafail_blur",
+    "ACC-IQA-GLARE": "iqafail_glare",
+    "ACC-MICR-FAIL": "micr_fail",
+    "ACC-DUP-001": "duplicate",
+    "ACC-MISMATCH": "amount_mismatch",
+    "ACC-001": "clean_pass",
+    "ACC-OVER-LIMIT": "clean_pass",
+    "ACC-RETIRE-001": "clean_pass"
+  },
+  "default_scenario": "clean_pass"
+}
