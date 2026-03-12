@@ -13,4 +13,4 @@ settlements/*.json
 
 # Build artifacts
 bin/
-server
+/server

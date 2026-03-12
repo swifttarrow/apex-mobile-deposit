@@ -54,6 +54,15 @@ make dev
 
 The server starts on `:8080`.
 
+### Scenario Showcase UI
+
+Visit **http://localhost:8080/scenarios/** to see a visual reference of all user story scenarios. The UI shows:
+- **Case** — Scenario name and ID (e.g. US-1.1, US-2.1)
+- **Flow** — Step-by-step state transitions and API calls
+- **Pass/Fail** — Run scenarios against the live API and see results with full response bodies
+
+Requires the server to be running. Use the API base field if the UI is served from a different origin.
+
 ### Run Tests
 
 ```bash

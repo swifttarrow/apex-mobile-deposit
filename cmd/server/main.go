@@ -1,10 +1,13 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/checkstream/checkstream/internal/api"
 	"github.com/checkstream/checkstream/internal/db"
@@ -16,6 +19,9 @@ import (
 	"github.com/checkstream/checkstream/internal/transfer"
 	"github.com/checkstream/checkstream/internal/vendor"
 )
+
+//go:embed all:web/scenarios
+var scenarioFS embed.FS
 
 func main() {
 	dsn := os.Getenv("DATABASE_URL")
@@ -77,6 +83,35 @@ func main() {
 	ledgerHandler := api.NewLedgerHandler(database)
 	mux.HandleFunc("GET /ledger", ledgerHandler.List)
 	mux.HandleFunc("GET /accounts/{id}/balance", ledgerHandler.Balance)
+
+	// Scenario showcase UI (embedded)
+	scenarioRoot, _ := fs.Sub(scenarioFS, "web/scenarios")
+	scenarioHandler := func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/scenarios" || path == "/scenarios/" {
+			path = "/scenarios/index.html"
+		}
+		name := strings.TrimPrefix(path, "/scenarios/")
+		if name == "" {
+			name = "index.html"
+		}
+		b, err := fs.ReadFile(scenarioRoot, name)
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		switch {
+		case strings.HasSuffix(name, ".js"):
+			w.Header().Set("Content-Type", "application/javascript")
+		case strings.HasSuffix(name, ".css"):
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		default:
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		}
+		w.Write(b)
+	}
+	mux.HandleFunc("GET /scenarios", scenarioHandler)
+	mux.HandleFunc("GET /scenarios/", scenarioHandler)
 
 	log.Println("Checkstream server listening on :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
