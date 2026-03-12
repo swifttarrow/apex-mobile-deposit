@@ -172,7 +172,7 @@
 stateDiagram-v2
     [*] --> Requested: Submit
     Requested --> Validating: Send to Vendor
-    Validating --> Requested: IQA Fail
+    Validating --> Rejected: IQA Fail
     Validating --> Rejected: Duplicate
     Validating --> ManualReview: MICR/Amount
     Validating --> Analyzing: Clean pass
@@ -265,8 +265,9 @@ stateDiagram-v2
               if (!id && g.id) id = (g.id || '').replace(/-/g, '_').toLowerCase();
               pathToParent.push({ path, g, id });
             });
+            // Order must match Mermaid diagram: 2× Validating→Rejected, then ManualReview, then Analyzing
             const segmentKeys = [
-              'start->requested','requested->validating','validating->requested','validating->rejected',
+              'start->requested','requested->validating','validating->rejected','validating->rejected',
               'validating->manualreview','validating->analyzing','manualreview->rejected','manualreview->analyzing',
               'analyzing->rejected','analyzing->approved','approved->fundsposted','fundsposted->settlementqueued',
               'fundsposted->returned','settlementqueued->settling','settling->completed','settling->settlementissue',
@@ -451,13 +452,16 @@ stateDiagram-v2
           const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-MICR-FAIL', amount: 200, front_image: 'f', back_image: 'b' }) });
           const j1 = await r1.json();
-          if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: `Got ${r1.status}`, path: [['Requested','Validating'],['Validating','ManualReview']] };
-          const tid = j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No transfer id', path: [] };
+          const micrPathToManualReview = [['Requested','Validating'],['Validating','ManualReview']];
+          if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: `Got ${r1.status}`, path: micrPathToManualReview };
+          const tid = j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No transfer id', path: micrPathToManualReview };
           const r2 = await fetch(`${base}/operator/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transfer_id: tid, operator_id: 'op-1', note: 'ok' }) });
           const j2 = await r2.json();
           const ok = r2.status === 200 && (j2.state === 'FundsPosted' || j2.state === 'Completed');
-          return { ok, status: r2.status, body: { submit: j1, approve: j2 }, msg: ok ? 'Passed' : 'Approve failed', path: ok ? [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(j2) };
+          const fullPath = [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']];
+          const failPath = ok ? fullPath : [...micrPathToManualReview, ['ManualReview','Analyzing']];
+          return { ok, status: r2.status, body: { submit: j1, approve: j2 }, msg: ok ? 'Passed' : 'Approve failed', path: ok ? fullPath : failPath };
         }},
       { id: 'US-1.4b', name: 'MICR fail — operator rejects', section: 'Deposit Capture', runnable: true,
         desc: 'MICR unreadable; operator rejects → Rejected.',
