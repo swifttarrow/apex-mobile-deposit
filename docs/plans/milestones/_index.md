@@ -2,7 +2,7 @@
 
 **Source plans:**
 - [MVP Implementation Plan](../../../thoughts/plans/2025-03-10-checkstream-mvp.md)
-- [MVP to Full Deliverable Gaps](../../../thoughts/plans/2025-03-10-checkstream-mvp-to-full-deliverable.md)
+- [MVP to Full Deliverable Gaps](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md)
 
 ## Milestone Order
 
@@ -19,7 +19,7 @@
 ## Quick Links
 
 - [MVP Plan](../../../thoughts/plans/2025-03-10-checkstream-mvp.md)
-- [Gaps Plan](../../../thoughts/plans/2025-03-10-checkstream-mvp-to-full-deliverable.md)
+- [Gaps Plan](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md)
 - [PRD](../../prd.md)
 - [Requirements](../../requirements.md)
 - [Research](../../../thoughts/research/checkstream-prd-research.md)

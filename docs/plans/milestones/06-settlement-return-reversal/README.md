@@ -4,7 +4,7 @@
 
 Settlement file with EOD cutoff. Implementation uses X9-like JSON (see [DL-004](../../../decision_log.md#dl-004-x9-like-json-settlement-files)); Moov binary X9 ICL deferred for production. Return handler: reversal posting, $30 fee, state → Returned. Investor notification stub; minimal settlement ack tracking (full deliverable).
 
-**Source:** [MVP Plan Phase 6](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-6-settlement--returnreversal) | [Gaps: Investor notification, settlement ack](../../../thoughts/plans/2025-03-10-checkstream-mvp-to-full-deliverable.md#3-returnreversal-gaps)
+**Source:** [MVP Plan Phase 6](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-6-settlement--returnreversal) | [Gaps: Investor notification, settlement ack](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md#3-returnreversal-gaps)
 
 ## Dependencies
 

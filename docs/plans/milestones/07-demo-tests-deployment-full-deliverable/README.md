@@ -4,7 +4,7 @@
 
 Minimal UI or CLI for demo; tests covering all 10 scenarios; `make dev`; README; deploy to Railway/Render/Fly.io. Full deliverable: risks doc, operational cost analysis, architecture with state machine diagram, SUBMISSION.md, test report, demo video, Pre-Search reference, social post, ledger view.
 
-**Source:** [MVP Plan Phase 7](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-7-demo-tests-one-command-setup--deployment) | [Gaps: Documentation, Submission](../../../thoughts/plans/2025-03-10-checkstream-mvp-to-full-deliverable.md#8-documentation-gaps)
+**Source:** [MVP Plan Phase 7](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-7-demo-tests-one-command-setup--deployment) | [Gaps: Documentation, Submission](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md#8-documentation-gaps)
 
 ## Dependencies
 

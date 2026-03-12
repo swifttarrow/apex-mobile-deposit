@@ -4,7 +4,7 @@
 
 Business rules ($5K limit, duplicate detection, contribution defaults), omnibus lookup, ledger posting. MOVEMENT entries with To/From, SubType DEPOSIT, Transfer Type CHECK.
 
-**Source:** [MVP Plan Phase 3](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-3-funding-service--ledger) | [Gaps: Contribution defaults](../../../thoughts/plans/2025-03-10-checkstream-mvp-to-full-deliverable.md#1-funding-service-gaps)
+**Source:** [MVP Plan Phase 3](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-3-funding-service--ledger) | [Gaps: Contribution defaults](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md#1-funding-service-gaps)
 
 ## Dependencies
 

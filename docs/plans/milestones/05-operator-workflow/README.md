@@ -4,7 +4,7 @@
 
 Review queue for flagged deposits. Approve/reject with audit logging. Search/filter by date, status, account, amount. Include risk scores, MICR confidence, amount comparison, and contribution override (full deliverable).
 
-**Source:** [MVP Plan Phase 5](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-5-operator-workflow) | [Gaps: Risk scores, contribution override](../../../thoughts/plans/2025-03-10-checkstream-mvp-to-full-deliverable.md#2-operator-workflow-gaps)
+**Source:** [MVP Plan Phase 5](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-5-operator-workflow) | [Gaps: Risk scores, contribution override](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md#2-operator-workflow-gaps)
 
 ## Dependencies
 
