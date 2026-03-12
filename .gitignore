@@ -14,3 +14,6 @@ settlements/*.json
 # Build artifacts
 bin/
 /server
+
+# Dependencies
+node_modules/
