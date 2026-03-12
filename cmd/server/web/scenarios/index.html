@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkstream — Scenario Showcase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-card: #161b22;
+      --bg-hover: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --fail: #f85149;
+      --warn: #d29922;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; overflow: hidden; }
+
+    header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; }
+    h1 { font-size: 1.25rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem; }
+
+    .api-bar { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1.5rem; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    .api-bar label { color: var(--text-muted); }
+    .api-bar input { flex: 1; max-width: 320px; padding: 0.4rem 0.6rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+    .api-bar .status { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+    .api-bar .status.ok { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+    .api-bar .status.err { background: rgba(248, 81, 73, 0.2); color: var(--fail); }
+    .api-bar .status.pending { color: var(--text-muted); }
+
+    .main-layout { display: flex; gap: 0; height: calc(100vh - 120px); overflow: hidden; }
+    .diagram-pane {
+      flex: 1 1 60%;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .diagram-pane h3 { font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; flex-shrink: 0; }
+    .diagram-pane .accordion-desc { flex-shrink: 0; }
+    #mermaid-diagram { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; overflow: auto; }
+    #mermaid-diagram .mermaid { max-width: 100%; }
+    #mermaid-diagram .flow-current path,
+    #mermaid-diagram path.flow-current {
+      stroke: #58a6ff !important; stroke-width: 3 !important; filter: drop-shadow(0 0 6px #58a6ff);
+      stroke-dasharray: 10 20 !important; stroke-dashoffset: 0;
+      animation: mermaid-flow 0.8s linear infinite !important;
+    }
+    @keyframes mermaid-flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -30; } }
+    #mermaid-diagram .flow-current rect, #mermaid-diagram .flow-current circle, #mermaid-diagram .flow-current ellipse { stroke: #58a6ff !important; stroke-width: 3 !important; filter: drop-shadow(0 0 4px #58a6ff); }
+    #mermaid-diagram .flow-traversed path, #mermaid-diagram path.flow-traversed { stroke: #3fb950 !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; animation: none !important; }
+    #mermaid-diagram .flow-traversed-fail path, #mermaid-diagram path.flow-traversed-fail { stroke: #f85149 !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; animation: none !important; }
+    #mermaid-diagram .flow-traversed rect, #mermaid-diagram .flow-traversed circle, #mermaid-diagram .flow-traversed ellipse { stroke: #3fb950 !important; stroke-width: 2 !important; }
+    #mermaid-diagram .flow-traversed-fail rect, #mermaid-diagram .flow-traversed-fail circle, #mermaid-diagram .flow-traversed-fail ellipse { stroke: #f85149 !important; stroke-width: 2 !important; }
+
+    .accordion-pane {
+      flex: 0 0 380px;
+      min-height: 0;
+      background: var(--bg);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .accordion-pane .run-all-wrap { flex-shrink: 0; }
+    .accordion-pane h3 { flex-shrink: 0; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
+    .accordion-pane #accordion { flex: 1; min-height: 0; overflow-y: auto; }
+
+    .accordion-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+    }
+    .accordion-item:hover { border-color: var(--accent); }
+    .accordion-item.passed { border-left: 3px solid var(--success); }
+    .accordion-item.failed { border-left: 3px solid var(--fail); }
+    .accordion-item.running { border-left: 3px solid var(--warn); }
+    .accordion-header {
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .accordion-header:hover { background: var(--bg-hover); }
+    .accordion-title { font-weight: 600; font-size: 0.9rem; }
+    .accordion-id { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted); }
+    .accordion-badge { font-size: 0.65rem; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    .accordion-badge.runnable { background: rgba(88, 166, 255, 0.2); color: var(--accent); }
+    .accordion-badge.doc-only { background: var(--bg-hover); color: var(--text-muted); }
+    .accordion-badge.passed { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+    .accordion-badge.failed { background: rgba(248, 81, 73, 0.2); color: var(--fail); }
+    .accordion-badge.running { background: rgba(210, 153, 34, 0.2); color: var(--warn); }
+    .accordion-chevron { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.2s; }
+    .accordion-item.expanded .accordion-chevron { transform: rotate(90deg); }
+    .accordion-body { display: none; padding: 1rem; border-top: 1px solid var(--border); }
+    .accordion-item.expanded .accordion-body { display: block; }
+    .accordion-desc { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem; }
+    .expectations { font-size: 0.8rem; margin-bottom: 1rem; }
+    .expectations strong { color: var(--text); }
+    .expectations ul { margin: 0.4rem 0 0 1rem; color: var(--text-muted); }
+    .output-section { margin-top: 1rem; }
+    .output-section h4 { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .output-box {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.75rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .output-box.expected { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+    .output-box.actual { background: rgba(63, 185, 80, 0.08); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .output-box.actual.failed { background: rgba(248, 81, 73, 0.08); border-color: rgba(248, 81, 73, 0.3); }
+    .output-box .summary { font-weight: 600; margin-bottom: 0.5rem; }
+    .btn-row { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .btn { padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; border: none; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-run { background: var(--accent); color: var(--bg); }
+    .btn-clear { background: var(--bg-hover); color: var(--text); border: 1px solid var(--border); }
+    .run-all-wrap { padding: 0 1rem 0.5rem; }
+    .diagram-controls { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; margin-bottom: 1rem; }
+    .diagram-controls label { font-size: 0.85rem; color: var(--text-muted); }
+    .diagram-controls .speed-wrap { display: flex; align-items: center; gap: 0.5rem; }
+    .diagram-controls input[type="range"] { width: 120px; accent-color: var(--accent); }
+    .diagram-controls .speed-value { font-size: 0.8rem; color: var(--text-muted); min-width: 3.5em; }
+    .diagram-controls .btn-pause { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Checkstream Scenario Showcase</h1>
+    <p class="subtitle">State machine diagram + interactive scenario runner</p>
+  </header>
+  <div class="api-bar">
+    <label for="apiBase">API:</label>
+    <input type="text" id="apiBase" placeholder="http://localhost:8080">
+    <span id="apiStatus" class="status pending">—</span>
+  </div>
+
+  <div class="main-layout">
+    <aside class="diagram-pane">
+      <h3>Transfer State Machine</h3>
+      <p class="accordion-desc" style="margin-bottom:0.5rem;">Run a scenario to see the path animate. Each segment highlights in sequence.</p>
+      <div class="diagram-controls">
+        <div class="speed-wrap">
+          <label for="speedSlider">Speed</label>
+          <input type="range" id="speedSlider" min="200" max="2000" step="100" value="1000" title="Delay between segments (ms)">
+          <span class="speed-value" id="speedValue">1.0s</span>
+        </div>
+        <button type="button" class="btn btn-pause btn-clear" id="pauseBtn" disabled>Pause</button>
+      </div>
+      <div id="mermaid-diagram">
+        <pre class="mermaid" id="mermaid-source">
+stateDiagram-v2
+    [*] --> Requested: Submit
+    Requested --> Validating: Send to Vendor
+    Validating --> Requested: IQA Fail
+    Validating --> Rejected: Duplicate
+    Validating --> ManualReview: MICR/Amount
+    Validating --> Analyzing: Clean pass
+    ManualReview --> Rejected: Reject
+    ManualReview --> Analyzing: Approve
+    Analyzing --> Rejected: Rules fail
+    Analyzing --> Approved: Pass
+    Approved --> FundsPosted: Ledger
+    FundsPosted --> SettlementQueued: EOD batch
+    FundsPosted --> Returned: Return
+    SettlementQueued --> Settling: Submit
+    Settling --> Completed: Ack
+    Settling --> SettlementIssue: Missing ack
+    Completed --> Returned: Return + fee
+        </pre>
+      </div>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script>
+        (function() {
+          const diagramEl = document.getElementById('mermaid-diagram');
+          const sourceEl = document.getElementById('mermaid-source');
+          let svgRoot = null;
+          let edgeMap = null;
+          let paused = false;
+          let unpauseResolve = null;
+          let animating = false;
+          let activeMarkerPaths = [];
+
+          function getDelayMs() { return parseInt(document.getElementById('speedSlider')?.value || 1000, 10); }
+          function waitWithPause(ms) {
+            return new Promise(resolve => {
+              const start = Date.now();
+              let totalPaused = 0;
+              let pauseStart = 0;
+              const tick = () => {
+                if (paused) {
+                  if (!pauseStart) pauseStart = Date.now();
+                  unpauseResolve = () => {
+                    totalPaused += Date.now() - pauseStart;
+                    pauseStart = 0;
+                    paused = false;
+                    tick();
+                  };
+                  return;
+                }
+                pauseStart = 0;
+                const elapsed = Date.now() - start - totalPaused;
+                if (elapsed >= ms) return resolve();
+                setTimeout(tick, 50);
+              };
+              tick();
+            });
+          }
+
+          document.getElementById('speedSlider')?.addEventListener('input', (e) => {
+            const v = parseInt(e.target.value, 10);
+            const el = document.getElementById('speedValue');
+            if (el) el.textContent = (v / 1000).toFixed(1) + 's';
+          });
+          document.getElementById('speedSlider')?.dispatchEvent(new Event('input'));
+
+          document.getElementById('pauseBtn')?.addEventListener('click', () => {
+            if (!animating) return;
+            paused = !paused;
+            const btn = document.getElementById('pauseBtn');
+            if (btn) btn.textContent = paused ? 'Resume' : 'Pause';
+            if (!paused && unpauseResolve) { unpauseResolve(); unpauseResolve = null; }
+          });
+
+          function edgeKey(from, to) {
+            const n = (s) => s === '[*]' ? 'start' : s;
+            return n(from) + '->' + n(to);
+          }
+
+          function buildEdgeMap() {
+            edgeMap = {};
+            if (!svgRoot) return;
+            const pathToParent = [];
+            svgRoot.querySelectorAll('path').forEach(path => {
+              const g = path.closest('g');
+              if (!g || !path.getTotalLength) return;
+              if (path.closest('defs') || path.closest('marker')) return;
+              if (path.getTotalLength() < 15) return;
+              let id = '';
+              let el = path.parentElement;
+              for (let i = 0; i < 5 && el; i++) {
+                if (el.id) { id = (el.id || '').replace(/-/g, '_').toLowerCase(); break; }
+                el = el.parentElement;
+              }
+              if (!id && g.id) id = (g.id || '').replace(/-/g, '_').toLowerCase();
+              pathToParent.push({ path, g, id });
+            });
+            const segmentKeys = [
+              'start->requested','requested->validating','validating->requested','validating->rejected',
+              'validating->manualreview','validating->analyzing','manualreview->rejected','manualreview->analyzing',
+              'analyzing->rejected','analyzing->approved','approved->fundsposted','fundsposted->settlementqueued',
+              'fundsposted->returned','settlementqueued->settling','settling->completed','settling->settlementissue',
+              'completed->returned'
+            ];
+            const usedPaths = new Set();
+            const reverseId = (f, t) => t + '_' + f;
+            segmentKeys.forEach((key, idx) => {
+              const [from, to] = key.split('->');
+              const exactId = from + '_' + to;
+              const exactIdAlt = from + '-' + to;
+              const revId = reverseId(from, to);
+              const revIdAlt = reverseId(from, to).replace('_', '-');
+              let found = null;
+              for (const { path, id } of pathToParent) {
+                if (usedPaths.has(path)) continue;
+                const exactMatch = id === exactId || id === exactIdAlt ||
+                  id.endsWith('_' + exactId) || id.endsWith('_' + exactIdAlt);
+                const looseMatch = id.includes(from) && id.includes(to) &&
+                  !id.endsWith(revId) && !id.endsWith(revIdAlt) &&
+                  id.indexOf(from) < id.indexOf(to);
+                const match = exactMatch || looseMatch;
+                if (match) { found = path; usedPaths.add(path); break; }
+              }
+              if (!found && pathToParent[idx] && !usedPaths.has(pathToParent[idx].path)) {
+                found = pathToParent[idx].path;
+                usedPaths.add(found);
+              }
+              if (found) edgeMap[key] = found;
+            });
+          }
+
+          function findEdgeOrPath(from, to) {
+            if (!svgRoot) return null;
+            if (!edgeMap) buildEdgeMap();
+            const key = edgeKey(from, to).toLowerCase();
+            return edgeMap[key] || null;
+          }
+
+          function findNode(name) {
+            if (!svgRoot) return null;
+            const n = name === '[*]' ? 'start' : name;
+            return svgRoot.querySelector('[id="' + n + '"]') || svgRoot.querySelector('[id="state-' + n + '"]') || svgRoot.querySelector('[id*="' + n + '"]');
+          }
+
+          function styleMarkers(edgePath, color) {
+            const markerEnd = edgePath.getAttribute('marker-end');
+            if (!markerEnd) return;
+            const id = markerEnd.match(/url\(["']?#([^)"']+)/)?.[1];
+            if (!id) return;
+            try {
+              const original = svgRoot.querySelector('#' + CSS.escape(id));
+              if (!original) return;
+              // Reuse existing clone for this edge if already created
+              let entry = activeMarkerPaths.find(m => m.edgePath === edgePath);
+              let clone;
+              if (entry) {
+                clone = svgRoot.querySelector('#' + CSS.escape(entry.cloneId));
+              } else {
+                const cloneId = 'flow-marker-' + Math.random().toString(36).slice(2);
+                clone = original.cloneNode(true);
+                clone.id = cloneId;
+                original.parentNode.appendChild(clone);
+                edgePath.setAttribute('marker-end', 'url(#' + cloneId + ')');
+                entry = { edgePath, originalMarkerEnd: markerEnd, cloneId };
+                activeMarkerPaths.push(entry);
+              }
+              if (clone) clone.querySelectorAll('path').forEach(p => p.style.fill = color || '');
+            } catch(e) {}
+          }
+
+          function clearHighlights() {
+            if (!svgRoot) return;
+            svgRoot.querySelectorAll('.flow-current, .flow-traversed, .flow-traversed-fail').forEach(el => {
+              el.classList.remove('flow-current', 'flow-traversed', 'flow-traversed-fail');
+            });
+            activeMarkerPaths.forEach(({ edgePath, originalMarkerEnd, cloneId }) => {
+              edgePath.setAttribute('marker-end', originalMarkerEnd);
+              svgRoot.querySelector('#' + CSS.escape(cloneId))?.remove();
+            });
+            activeMarkerPaths = [];
+          }
+
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            themeVariables: { primaryColor: '#161b22', primaryTextColor: '#e6edf3', primaryBorderColor: '#30363d', lineColor: '#484f58', secondaryColor: '#21262d', tertiaryColor: '#0d1117' }
+          });
+
+          mermaid.run({ nodes: [sourceEl], suppressErrors: true }).then(() => {
+            svgRoot = diagramEl.querySelector('svg');
+            if (svgRoot) svgRoot.style.maxWidth = '100%';
+          }).catch(() => {});
+
+          window.__flowDiagram = {
+            animatePath: async function(segments, isFail) {
+              if (!segments || !segments.length) return;
+              if (segments[0][0] === 'Requested') {
+                segments = [['[*]', 'Requested']].concat(segments);
+              }
+              animating = true;
+              paused = false;
+              const btn = document.getElementById('pauseBtn');
+              if (btn) { btn.disabled = false; btn.textContent = 'Pause'; }
+              const traversedClass = isFail ? 'flow-traversed-fail' : 'flow-traversed';
+              clearHighlights();
+              const delayMs = getDelayMs();
+              const blinkMs = Math.max(150, Math.floor(delayMs * 0.35));
+              const traversedColor = isFail ? '#f85149' : '#3fb950';
+              // Interleave: edge[0], node[0], edge[1], node[1], ...
+              const steps = [];
+              for (const [from, to] of segments) {
+                steps.push({ type: 'edge', from, to });
+                steps.push({ type: 'node', to });
+              }
+              for (const s of steps) {
+                const el = s.type === 'edge' ? findEdgeOrPath(s.from, s.to) : findNode(s.to);
+                // Flash blue
+                if (el) el.classList.add('flow-current');
+                if (s.type === 'edge' && el) styleMarkers(el, '#58a6ff');
+                await waitWithPause(blinkMs);
+                // Turn traversed color
+                if (el) { el.classList.remove('flow-current'); el.classList.add(traversedClass); }
+                if (s.type === 'edge' && el) styleMarkers(el, traversedColor);
+                await waitWithPause(delayMs - blinkMs);
+              }
+              animating = false;
+              if (btn) { btn.disabled = true; btn.textContent = 'Pause'; }
+            },
+            reset: clearHighlights
+          };
+        })();
+      </script>
+    </aside>
+    <aside class="accordion-pane">
+      <div class="run-all-wrap"><button class="btn btn-run" id="runAllBtn">Run all</button></div>
+      <h3>Scenarios</h3>
+      <div id="accordion"></div>
+    </aside>
+  </div>
+
+  <script>
+    const SCENARIOS = [
+      { id: 'US-1.1', name: 'Happy path — clean pass', section: 'Deposit Capture', runnable: true,
+        desc: 'Submit valid check; processes end-to-end without operator review.',
+        expected: ['HTTP 201', 'State: FundsPosted', 'Ledger posted'],
+        path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
+        run: async (base) => {
+          const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-001', amount: 150, front_image: 'f', back_image: 'b' }) });
+          const j = await r.json();
+          const ok = r.status === 201 && (j.state === 'FundsPosted' || j.state === 'Completed');
+          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: ok ? [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(j) };
+        }},
+      { id: 'US-1.2', name: 'IQA fail (blur)', section: 'Deposit Capture', runnable: true,
+        desc: 'Blurry image; user retakes. Transfer rejected.',
+        expected: ['HTTP 422', 'reason: blur', 'No ledger'],
+        path: [['Requested','Validating'],['Validating','Rejected']],
+        run: async (base) => {
+          const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-IQA-BLUR', amount: 100, front_image: 'x', back_image: 'x' }) });
+          const j = await r.json();
+          const ok = r.status === 422 && (j.reason === 'blur' || j.transfer?.state === 'Rejected');
+          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Rejected']] };
+        }},
+      { id: 'US-1.3', name: 'IQA fail (glare)', section: 'Deposit Capture', runnable: true,
+        desc: 'Glare detected; user retakes.',
+        expected: ['HTTP 422', 'reason: glare', 'No ledger'],
+        path: [['Requested','Validating'],['Validating','Rejected']],
+        run: async (base) => {
+          const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-IQA-GLARE', amount: 100, front_image: 'x', back_image: 'x' }) });
+          const j = await r.json();
+          const ok = r.status === 422 && (j.reason === 'glare' || j.transfer?.state === 'Rejected');
+          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Rejected']] };
+        }},
+      { id: 'US-1.4a', name: 'MICR fail — operator approves', section: 'Deposit Capture', runnable: true,
+        desc: 'MICR unreadable; flagged. Operator approves → FundsPosted.',
+        expected: ['HTTP 202 submit', 'Approve → FundsPosted', 'Ledger posted'],
+        path: [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
+        run: async (base) => {
+          const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-MICR-FAIL', amount: 200, front_image: 'f', back_image: 'b' }) });
+          const j1 = await r1.json();
+          if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: `Got ${r1.status}`, path: [['Requested','Validating'],['Validating','ManualReview']] };
+          const tid = j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No transfer id', path: [] };
+          const r2 = await fetch(`${base}/operator/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transfer_id: tid, operator_id: 'op-1', note: 'ok' }) });
+          const j2 = await r2.json();
+          const ok = r2.status === 200 && (j2.state === 'FundsPosted' || j2.state === 'Completed');
+          return { ok, status: r2.status, body: { submit: j1, approve: j2 }, msg: ok ? 'Passed' : 'Approve failed', path: ok ? [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(j2) };
+        }},
+      { id: 'US-1.4b', name: 'MICR fail — operator rejects', section: 'Deposit Capture', runnable: true,
+        desc: 'MICR unreadable; operator rejects → Rejected.',
+        expected: ['HTTP 202 submit', 'Reject → Rejected', 'No ledger'],
+        path: [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Rejected']],
+        run: async (base) => {
+          const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-MICR-FAIL', amount: 200, front_image: 'f', back_image: 'b' }) });
+          const j1 = await r1.json();
+          if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: `Got ${r1.status}`, path: [['Requested','Validating'],['Validating','ManualReview']] };
+          const tid = j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No id', path: [] };
+          const r2 = await fetch(`${base}/operator/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transfer_id: tid, operator_id: 'op-1', note: 'no' }) });
+          const j2 = await r2.json();
+          const ok = r2.status === 200 && j2.state === 'Rejected';
+          return { ok, status: r2.status, body: { submit: j1, reject: j2 }, msg: ok ? 'Passed' : 'Reject failed', path: [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Rejected']] };
+        }},
+      { id: 'US-1.5', name: 'Duplicate detected', section: 'Deposit Capture', runnable: true,
+        desc: 'Same check twice; second rejected.',
+        expected: ['HTTP 422', 'reason: duplicate', 'No ledger'],
+        path: [['Requested','Validating'],['Validating','Rejected']],
+        run: async (base) => {
+          const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-DUP-001', amount: 100, front_image: 'x', back_image: 'x' }) });
+          const j = await r.json();
+          const ok = r.status === 422 && (j.reason === 'duplicate' || j.error?.includes('duplicate'));
+          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Rejected']] };
+        }},
+      { id: 'US-1.6', name: 'Amount mismatch — flagged', section: 'Deposit Capture', runnable: true,
+        desc: 'OCR vs entered mismatch; flagged for review.',
+        expected: ['HTTP 202', 'reason: amount_mismatch', 'In operator queue'],
+        path: [['Requested','Validating'],['Validating','ManualReview']],
+        run: async (base) => {
+          const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-MISMATCH', amount: 1500, front_image: 'f', back_image: 'b' }) });
+          const j = await r.json();
+          const ok = r.status === 202 && (j.reason === 'amount_mismatch' || j.transfer?.state === 'Analyzing');
+          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','ManualReview']] };
+        }},
+      { id: 'US-2.1', name: 'Over-limit rejected', section: 'Funding', runnable: true,
+        desc: 'Deposit > $5,000 rejected.',
+        expected: ['HTTP 422', 'limit exceeded', 'No ledger'],
+        path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Rejected']],
+        run: async (base) => {
+          const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-OVER-LIMIT', amount: 5001, front_image: 'f', back_image: 'b' }) });
+          const j = await r.json();
+          const ok = r.status === 422 && (j.error?.includes('limit') || j.error?.includes('5000'));
+          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Rejected']] };
+        }},
+      { id: 'US-2.2', name: 'Under-limit accepted', section: 'Funding', runnable: true,
+        desc: 'Deposit ≤ $5,000 proceeds.',
+        expected: ['HTTP 201', 'FundsPosted', 'Ledger posted'],
+        path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
+        run: async (base) => {
+          const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-001', amount: 5000, front_image: 'f', back_image: 'b' }) });
+          const j = await r.json();
+          const ok = r.status === 201 && (j.state === 'FundsPosted' || j.state === 'Completed');
+          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: ok ? [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(j) };
+        }},
+      { id: 'US-6.1', name: 'Return — reversal + fee', section: 'Return', runnable: true,
+        desc: 'Bounced check → reversal + $30 fee.',
+        expected: ['Return accepted', 'State: Returned', 'Reversal + $30 fee'],
+        path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted'],['FundsPosted','Returned']],
+        run: async (base) => {
+          const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: 'ACC-001', amount: 500, front_image: 'f', back_image: 'b' }) });
+          const j1 = await r1.json();
+          if (r1.status !== 201) return { ok: false, status: r1.status, body: j1, msg: 'Deposit failed', path: [['Requested','Validating']] };
+          const tid = j1.id || j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No id', path: [] };
+          const r2 = await fetch(`${base}/returns`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transfer_id: tid, reason: 'insufficient funds' }) });
+          const j2 = await r2.json();
+          const ok = r2.status === 200 && j2.transfer?.state === 'Returned' && j2.reversal_fee === 30;
+          return { ok, status: r2.status, body: { deposit: j1, return: j2 }, msg: ok ? 'Passed' : 'Return failed', path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted'],['FundsPosted','Returned']] };
+        }},
+      { id: 'US-5.1', name: 'Settlement file', section: 'Settlement', runnable: true,
+        desc: 'EOD settlement run produces file.',
+        expected: ['HTTP 200', 'File generated', 'total_count ≥ 0'],
+        path: [['FundsPosted','SettlementQueued'],['SettlementQueued','Settling'],['Settling','Completed']],
+        run: async (base) => {
+          const r = await fetch(`${base}/settlement/trigger`, { method: 'POST' });
+          const j = await r.json();
+          const ok = r.status === 200;
+          return { ok, status: r.status, body: j, msg: ok ? `Passed (${j.total_count ?? 0} items)` : `Got ${r.status}`, path: [['FundsPosted','SettlementQueued'],['SettlementQueued','Settling'],['Settling','Completed']] };
+        }},
+      { id: 'US-1.7', name: 'Stub configurability', section: 'Deposit Capture', runnable: false,
+        desc: 'Trigger scenarios via config or X-Test-Scenario.',
+        expected: ['7+ stub responses', 'No redeploy'],
+        path: []},
+      { id: 'US-5.2', name: 'EOD cutoff 6:30 PM CT', section: 'Settlement', runnable: false,
+        desc: 'Deposits after cutoff roll to next day.',
+        expected: ['Cutoff enforced', 'Timezone-aware'],
+        path: []},
+      { id: 'US-3.2', name: 'Valid state transitions', section: 'Ledger', runnable: false,
+        desc: 'Invalid transitions rejected.',
+        expected: ['Only valid transitions', 'Invalid attempts rejected'],
+        path: []},
+      { id: 'US-Idem', name: 'Idempotency', section: 'System', runnable: true,
+        desc: 'Same idempotency key returns cached response.',
+        expected: ['Second request = same id', 'No double transfer'],
+        path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
+        run: async (base) => {
+          const key = `idem-${Date.now()}`;
+          const body = JSON.stringify({ account_id: 'ACC-001', amount: 75, front_image: 'f', back_image: 'b' });
+          const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': key }, body });
+          const j1 = await r1.json();
+          if (r1.status !== 201) return { ok: false, status: r1.status, body: j1, msg: 'First failed', path: [['Requested','Validating']] };
+          const r2 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': key }, body });
+          const j2 = await r2.json();
+          const ok = (r2.status === 200 || r2.status === 201) && j1.id === j2.id;
+          return { ok, status: r2.status, body: { first: j1, second: j2 }, msg: ok ? 'Passed' : 'Different ids', path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] };
+        }},
+    ];
+
+    function pathFromResp(j) {
+      const t = j.transfer || j; const s = t?.state;
+      if (s === 'Rejected') return [['Requested','Validating'],['Validating','Rejected']];
+      if (s === 'Analyzing') return [['Requested','Validating'],['Validating','ManualReview']];
+      return [['Requested','Validating']];
+    }
+
+    function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function resetDiagram() { window.__flowDiagram?.reset(); }
+
+    async function animateSegments(segments, isFail) {
+      if (!segments?.length) return;
+      const api = window.__flowDiagram;
+      if (api?.animatePath) await api.animatePath(segments, isFail);
+    }
+
+    function renderAccordion() {
+      const container = document.getElementById('accordion');
+      container.innerHTML = SCENARIOS.map(s => {
+        const badgeClass = s.runnable ? 'runnable' : 'doc-only';
+        const expectedList = (s.expected || []).map(e => `<li>${escapeHtml(e)}</li>`).join('');
+        return `
+          <div class="accordion-item" data-id="${s.id}">
+            <div class="accordion-header">
+              <div><span class="accordion-title">${escapeHtml(s.name)}</span><span class="accordion-id">${s.id}</span></div>
+              <span class="accordion-badge ${badgeClass}">${s.runnable ? '' : 'Doc'}</span>
+              <span class="accordion-chevron">▶</span>
+            </div>
+            <div class="accordion-body">
+              <p class="accordion-desc">${escapeHtml(s.desc)}</p>
+              <div class="expectations"><strong>Expected:</strong><ul>${expectedList}</ul></div>
+              ${s.runnable ? `
+                <div class="btn-row">
+                  <button class="btn btn-run" data-run="${s.id}">Run</button>
+                  <button class="btn btn-clear" data-clear="${s.id}">Clear</button>
+                </div>
+                <div class="output-section">
+                  <h4>Actual output</h4>
+                  <div class="output-box" id="output-${s.id}" style="display:none"></div>
+                </div>
+              ` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      container.querySelectorAll('.accordion-header').forEach(h => {
+        h.onclick = () => {
+          const item = h.closest('.accordion-item');
+          item.classList.toggle('expanded');
+        };
+      });
+      container.querySelectorAll('[data-run]').forEach(btn => {
+        btn.onclick = (e) => { e.stopPropagation(); const s = SCENARIOS.find(x => x.id === btn.dataset.run); if (s) runScenario(s); };
+      });
+      container.querySelectorAll('[data-clear]').forEach(btn => {
+        btn.onclick = (e) => { e.stopPropagation(); clearResult(btn.dataset.clear); };
+      });
+    }
+
+    function clearResult(id) {
+      const item = document.querySelector(`[data-id="${id}"]`);
+      const box = document.getElementById(`output-${id}`);
+      if (item) item.classList.remove('passed', 'failed', 'running');
+      if (box) { box.style.display = 'none'; box.textContent = ''; box.className = 'output-box'; }
+      const badge = item?.querySelector('.accordion-badge');
+      if (badge?.classList.contains('runnable')) { badge.className = 'accordion-badge runnable'; badge.textContent = ''; }
+      resetDiagram();
+    }
+
+    async function runScenario(s) {
+      const base = (document.getElementById('apiBase')?.value || '').trim() || (window.location.origin.includes('localhost') ? 'http://localhost:8080' : '');
+      if (!base) { alert('Set API base URL'); return; }
+      const item = document.querySelector(`[data-id="${s.id}"]`);
+      const box = document.getElementById(`output-${s.id}`);
+      const badge = item?.querySelector('.accordion-badge');
+      item?.classList.remove('passed', 'failed');
+      item?.classList.add('running');
+      badge?.classList.remove('passed', 'failed');
+      badge?.classList.add('running');
+      badge.textContent = 'Running…';
+      if (box) { box.style.display = 'block'; box.className = 'output-box'; box.innerHTML = '<span class="summary">Running…</span>'; }
+      document.querySelectorAll('.accordion-item').forEach(el => {
+        if (el === item) el.classList.add('expanded');
+        else el.classList.remove('expanded');
+      });
+      item?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      try {
+        resetDiagram();
+        const result = await s.run(base);
+        const path = result.path || s.path || [];
+        if (path.length) await animateSegments(path, !result.ok);
+        item?.classList.remove('running');
+        item?.classList.add(result.ok ? 'passed' : 'failed');
+        badge?.classList.remove('running');
+        badge?.classList.add(result.ok ? 'passed' : 'failed');
+        badge.textContent = result.ok ? 'Passed' : 'Failed';
+        if (box) {
+          box.className = `output-box actual ${result.ok ? '' : 'failed'}`;
+          box.innerHTML = `<span class="summary">${result.ok ? '✓' : '✗'} ${escapeHtml(result.msg)}</span>\nHTTP ${result.status}\n${JSON.stringify(result.body, null, 2)}`;
+        }
+      } catch (e) {
+        resetDiagram();
+        item?.classList.remove('running');
+        item?.classList.add('failed');
+        badge?.classList.remove('running');
+        badge?.classList.add('failed');
+        badge.textContent = 'Failed';
+        if (box) { box.className = 'output-box actual failed'; box.innerHTML = `<span class="summary">Error: ${escapeHtml(e.message)}</span>`; }
+      }
+    }
+
+    async function runAll() {
+      const base = (document.getElementById('apiBase')?.value || '').trim() || (window.location.origin.includes('localhost') ? 'http://localhost:8080' : '');
+      if (!base) { alert('Set API base URL'); return; }
+      try { const r = await fetch(`${base}/health`); if (!r.ok) throw new Error('API down'); } catch (e) { alert('API unreachable'); return; }
+      document.getElementById('runAllBtn').disabled = true;
+      for (const s of SCENARIOS.filter(x => x.runnable)) {
+        document.querySelector(`[data-id="${s.id}"]`)?.classList.add('expanded');
+        await runScenario(s);
+      }
+      document.getElementById('runAllBtn').disabled = false;
+    }
+
+    async function init() {
+      document.getElementById('apiBase').value = window.location.origin.includes('localhost') ? 'http://localhost:8080' : (window.location.origin || '');
+      document.getElementById('apiBase').onchange = async () => {
+        const base = (document.getElementById('apiBase').value || '').trim();
+        const el = document.getElementById('apiStatus');
+        if (!base) { el.textContent = '—'; el.className = 'status pending'; return; }
+        try { const r = await fetch(`${base}/health`); el.textContent = r.ok ? 'OK' : 'Err'; el.className = r.ok ? 'status ok' : 'status err'; } catch (e) { el.textContent = '—'; el.className = 'status err'; }
+      };
+      document.getElementById('runAllBtn').onclick = runAll;
+      renderAccordion();
+      if (document.getElementById('apiBase').value) document.getElementById('apiBase').onchange();
+    }
+    init();
+  </script>
+</body>
+</html>
