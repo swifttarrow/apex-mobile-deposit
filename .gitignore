@@ -10,3 +10,7 @@
 reports/*.txt
 reports/*.json
 settlements/*.json
+
+# Build artifacts
+bin/
+server
