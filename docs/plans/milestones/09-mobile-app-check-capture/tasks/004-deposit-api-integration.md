@@ -6,11 +6,11 @@ Send mock front/back images, amount, account to Go deposit API. Match web flow p
 
 ## Deliverables
 
-- [ ] POST to deposit endpoint (e.g. POST /deposits) with multipart/form-data
-- [ ] Payload: front_image, back_image, amount, account_id; optional MICR if mock provides it
-- [ ] API base URL configurable (same origin if PWA, or env for Expo)
-- [ ] Success: show deposit ID, link to status; error handling
-- [ ] Source field: include `source: mobile` (or similar) if API supports it for logging
+- [x] POST to deposit endpoint (e.g. POST /deposits) with multipart/form-data
+- [x] Payload: front_image, back_image, amount, account_id; optional MICR if mock provides it
+- [x] API base URL configurable (same origin if PWA, or env for Expo)
+- [x] Success: show deposit ID, link to status; error handling
+- [x] Source field: include `source: mobile` (or similar) if API supports it for logging
 
 ## Notes
 

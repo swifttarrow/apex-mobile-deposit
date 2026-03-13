@@ -8,7 +8,7 @@ Separate `/operator` page for manual review, approval/rejection, and audit of fl
 
 ## Dependencies
 
-- [ ] Milestone 5: Operator Workflow (queue API, approve/reject endpoints)
+- [x] Milestone 5: Operator Workflow (queue API, approve/reject endpoints)
 
 ## Changes Required
 
@@ -24,8 +24,8 @@ Separate `/operator` page for manual review, approval/rejection, and audit of fl
 
 ### Automated Verification
 
-- [ ] Server serves `/operator` and `/scenarios` without error
-- [ ] Navigation links resolve correctly
+- [x] Server serves `/operator` and `/scenarios` without error
+- [x] Navigation links resolve correctly
 
 ### Manual Verification
 

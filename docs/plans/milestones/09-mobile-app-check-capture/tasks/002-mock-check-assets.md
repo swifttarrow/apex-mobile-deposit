@@ -6,10 +6,10 @@ Define location and naming convention for 6 mocked checks (front + back each).
 
 ## Deliverables
 
-- [ ] Directory for mock assets (e.g. `cmd/server/web/mobile/checks/` or `assets/checks/`)
-- [ ] Naming convention documented: e.g. `check-01-front.png`, `check-01-back.png` through `check-06-front.png`, `check-06-back.png`
-- [ ] Placeholder or example asset structure; user supplies actual images
-- [ ] README or doc section: "Supply 6 check images (front + back) in …"
+- [x] Directory for mock assets (e.g. `cmd/server/web/mobile/checks/` or `assets/checks/`)
+- [x] Naming convention documented: e.g. `check-01-front.png`, `check-01-back.png` through `check-06-front.png`, `check-06-back.png`
+- [x] Placeholder or example asset structure; user supplies actual images
+- [x] README or doc section: "Supply 6 check images (front + back) in …"
 
 ## Notes
 

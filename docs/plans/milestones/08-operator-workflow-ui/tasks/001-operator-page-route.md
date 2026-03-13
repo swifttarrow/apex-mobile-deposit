@@ -6,9 +6,9 @@ Add `/operator` route and serve the operator page HTML.
 
 ## Deliverables
 
-- [ ] `cmd/server/web/operator/index.html` (or equivalent) created
-- [ ] `main.go` updated to serve `/operator` and `/operator/` (similar to `/scenarios`)
-- [ ] Visiting `/operator` loads the operator page
+- [x] `cmd/server/web/operator/index.html` (or equivalent) created
+- [x] `main.go` updated to serve `/operator` and `/operator/` (similar to `/scenarios`)
+- [x] Visiting `/operator` loads the operator page
 
 ## Notes
 

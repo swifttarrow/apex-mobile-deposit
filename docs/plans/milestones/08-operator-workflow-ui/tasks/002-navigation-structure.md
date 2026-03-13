@@ -6,10 +6,10 @@ Add shared navigation (header or sidebar) to move between `/scenarios` and `/ope
 
 ## Deliverables
 
-- [ ] Nav component or bar with links: Scenarios, Operator
-- [ ] Nav present on `/scenarios` page
-- [ ] Nav present on `/operator` page
-- [ ] Active page indicated (e.g. current link highlighted)
+- [x] Nav component or bar with links: Scenarios, Operator
+- [x] Nav present on `/scenarios` page
+- [x] Nav present on `/operator` page
+- [x] Active page indicated (e.g. current link highlighted)
 
 ## Notes
 

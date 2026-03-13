@@ -6,12 +6,12 @@ Wire Approve/Reject buttons to API; show optional contribution override; display
 
 ## Deliverables
 
-- [ ] Approve button → POST /operator/approve with transfer_id; optional contribution_type
-- [ ] Reject button → POST /operator/reject with transfer_id
-- [ ] Contribution override UI (dropdown or input) when approving
-- [ ] Audit view: show operator_actions for selected deposit (action, operator_id, timestamp)
-- [ ] Success/error feedback after approve/reject
-- [ ] Queue refreshes or item removed after action
+- [x] Approve button → POST /operator/approve with transfer_id; optional contribution_type
+- [x] Reject button → POST /operator/reject with transfer_id
+- [x] Contribution override UI (dropdown or input) when approving
+- [x] Audit view: show operator_actions for selected deposit (action, operator_id, timestamp)
+- [x] Success/error feedback after approve/reject
+- [x] Queue refreshes or item removed after action
 
 ## Notes
 

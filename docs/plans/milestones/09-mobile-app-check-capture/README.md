@@ -8,7 +8,7 @@ Lightweight mobile app (PWA or Expo) that simulates taking pictures of checks (f
 
 ## Dependencies
 
-- [ ] Milestone 4: Deposit Submission Flow (API accepts multipart with front/back images)
+- [x] Milestone 4: Deposit Submission Flow (API accepts multipart with front/back images)
 - [ ] 6 mocked checks (6 fronts + 6 backs) supplied by user
 
 ## Changes Required
@@ -23,8 +23,8 @@ Lightweight mobile app (PWA or Expo) that simulates taking pictures of checks (f
 
 ### Automated Verification
 
-- [ ] App builds; no runtime errors
-- [ ] Deposit submission returns 202/201 from Go service
+- [x] App builds; no runtime errors
+- [x] Deposit submission returns 202/201 from Go service
 
 ### Manual Verification
 

@@ -15,8 +15,8 @@
 | 5 | [05-operator-workflow](./05-operator-workflow/) | Complete |
 | 6 | [06-settlement-return-reversal](./06-settlement-return-reversal/) | Mostly Complete |
 | 7 | [07-demo-tests-deployment-full-deliverable](./07-demo-tests-deployment-full-deliverable/) | Mostly Complete |
-| 8 | [08-operator-workflow-ui](./08-operator-workflow-ui/) | Pending |
-| 9 | [09-mobile-app-check-capture](./09-mobile-app-check-capture/) | Pending |
+| 8 | [08-operator-workflow-ui](./08-operator-workflow-ui/) | Complete |
+| 9 | [09-mobile-app-check-capture](./09-mobile-app-check-capture/) | Complete |
 
 ## Quick Links
 

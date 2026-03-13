@@ -6,11 +6,11 @@ Display flagged deposits from GET /operator/queue with risk scores, MICR confide
 
 ## Deliverables
 
-- [ ] Operator page fetches `GET /operator/queue` (or equivalent)
-- [ ] List/cards show: transfer id, account, amount, risk_score/iq_score, MICR confidence
-- [ ] OCR amount vs entered amount comparison visible
-- [ ] Check images (front/back) displayable (thumbnails or expandable)
-- [ ] Loading and error states handled
+- [x] Operator page fetches `GET /operator/queue` (or equivalent)
+- [x] List/cards show: transfer id, account, amount, risk_score/iq_score, MICR confidence
+- [x] OCR amount vs entered amount comparison visible
+- [x] Check images (front/back) displayable (thumbnails or expandable)
+- [x] Loading and error states handled
 
 ## Notes
 

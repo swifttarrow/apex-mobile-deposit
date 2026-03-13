@@ -6,10 +6,10 @@ Create the mobile app structure. PWA (served from Go) or separate Expo/React Nat
 
 ## Deliverables
 
-- [ ] Choose approach: PWA under `cmd/server/web/mobile/` or `mobile/` Expo project
-- [ ] Minimal app shell: HTML/JS (PWA) or Expo entry (React Native)
-- [ ] Responsive layout for mobile viewport
-- [ ] Route or entry point for check capture flow
+- [x] Choose approach: PWA under `cmd/server/web/mobile/` or `mobile/` Expo project
+- [x] Minimal app shell: HTML/JS (PWA) or Expo entry (React Native)
+- [x] Responsive layout for mobile viewport
+- [x] Route or entry point for check capture flow
 
 ## Notes
 

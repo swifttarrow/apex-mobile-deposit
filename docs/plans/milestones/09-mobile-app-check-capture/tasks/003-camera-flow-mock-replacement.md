@@ -6,12 +6,12 @@ Implement the capture flow: prompt for front, then back. Replace "taken" image w
 
 ## Deliverables
 
-- [ ] Step 1: "Capture front" — UI shows camera placeholder or "Take front photo" button
-- [ ] Step 2: "Capture back" — same for back
-- [ ] No actual camera/camera API; on tap, assign mock image for that step
-- [ ] User selects which mock check (1–6) before or during flow; or round-robin
-- [ ] Preview of selected mock (front/back) before submit
-- [ ] State: front_selected, back_selected, ready to submit
+- [x] Step 1: "Capture front" — UI shows camera placeholder or "Take front photo" button
+- [x] Step 2: "Capture back" — same for back
+- [x] No actual camera/camera API; on tap, assign mock image for that step
+- [x] User selects which mock check (1–6) before or during flow; or round-robin
+- [x] Preview of selected mock (front/back) before submit
+- [x] State: front_selected, back_selected, ready to submit
 
 ## Notes
 
