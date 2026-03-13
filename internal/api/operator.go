@@ -184,6 +184,25 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, t)
 }
 
+// Actions handles GET /operator/actions/{transfer_id}.
+func (h *OperatorHandler) Actions(w http.ResponseWriter, r *http.Request) {
+	transferID := r.PathValue("transfer_id")
+	if transferID == "" {
+		writeError(w, http.StatusBadRequest, "transfer_id is required")
+		return
+	}
+	actions, err := h.operatorRepo.ListActions(transferID)
+	if err != nil {
+		log.Printf("operator actions: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to list actions")
+		return
+	}
+	if actions == nil {
+		actions = []*operator.Action{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"actions": actions})
+}
+
 // RejectRequest is the request body for POST /operator/reject.
 type RejectRequest struct {
 	TransferID string `json:"transfer_id"`

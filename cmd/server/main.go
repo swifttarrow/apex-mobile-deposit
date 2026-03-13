@@ -23,6 +23,12 @@ import (
 //go:embed all:web/scenarios
 var scenarioFS embed.FS
 
+//go:embed all:web/operator
+var operatorFS embed.FS
+
+//go:embed all:web/mobile
+var mobileFS embed.FS
+
 func main() {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -70,6 +76,7 @@ func main() {
 	mux.HandleFunc("GET /operator/queue", operatorHandler.Queue)
 	mux.HandleFunc("POST /operator/approve", operatorHandler.Approve)
 	mux.HandleFunc("POST /operator/reject", operatorHandler.Reject)
+	mux.HandleFunc("GET /operator/actions/{transfer_id}", operatorHandler.Actions)
 
 	// Settlement routes
 	settlementHandler := api.NewSettlementHandler(settlementEngine)
@@ -113,8 +120,75 @@ func main() {
 	mux.HandleFunc("GET /scenarios", scenarioHandler)
 	mux.HandleFunc("GET /scenarios/", scenarioHandler)
 
-	log.Println("Checkstream server listening on :8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	// Operator UI (embedded)
+	operatorRoot, _ := fs.Sub(operatorFS, "web/operator")
+	operatorPageHandler := func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/operator" || path == "/operator/" {
+			path = "/operator/index.html"
+		}
+		name := strings.TrimPrefix(path, "/operator/")
+		if name == "" {
+			name = "index.html"
+		}
+		b, err := fs.ReadFile(operatorRoot, name)
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		switch {
+		case strings.HasSuffix(name, ".js"):
+			w.Header().Set("Content-Type", "application/javascript")
+		case strings.HasSuffix(name, ".css"):
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		default:
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		}
+		w.Write(b)
+	}
+	mux.HandleFunc("GET /operator", operatorPageHandler)
+	mux.HandleFunc("GET /operator/", operatorPageHandler)
+
+	// Mobile UI (embedded)
+	mobileRoot, _ := fs.Sub(mobileFS, "web/mobile")
+	mobileHandler := func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/mobile" || path == "/mobile/" {
+			path = "/mobile/index.html"
+		}
+		name := strings.TrimPrefix(path, "/mobile/")
+		if name == "" {
+			name = "index.html"
+		}
+		b, err := fs.ReadFile(mobileRoot, name)
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		switch {
+		case strings.HasSuffix(name, ".js"):
+			w.Header().Set("Content-Type", "application/javascript")
+		case strings.HasSuffix(name, ".css"):
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		case strings.HasSuffix(name, ".png"):
+			w.Header().Set("Content-Type", "image/png")
+		case strings.HasSuffix(name, ".jpg"), strings.HasSuffix(name, ".jpeg"):
+			w.Header().Set("Content-Type", "image/jpeg")
+		default:
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		}
+		w.Write(b)
+	}
+	mux.HandleFunc("GET /mobile", mobileHandler)
+	mux.HandleFunc("GET /mobile/", mobileHandler)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	addr := ":" + port
+	log.Printf("Checkstream server listening on %s", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

@@ -114,6 +114,28 @@ func (r *Repository) GetTransfer(id string) (*transfer.Transfer, error) {
 	return t, nil
 }
 
+// ListActions returns all operator actions for a transfer, ordered by created_at.
+func (r *Repository) ListActions(transferID string) ([]*Action, error) {
+	rows, err := r.db.Query(`
+		SELECT id, transfer_id, action, operator_id,
+		       COALESCE(note,''), COALESCE(contribution_type_override,''), created_at
+		FROM operator_actions WHERE transfer_id = ? ORDER BY created_at ASC`, transferID)
+	if err != nil {
+		return nil, fmt.Errorf("list actions: %w", err)
+	}
+	defer rows.Close()
+
+	var actions []*Action
+	for rows.Next() {
+		a := &Action{}
+		if err := rows.Scan(&a.ID, &a.TransferID, &a.Action, &a.OperatorID, &a.Note, &a.ContributionTypeOverride, &a.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan action: %w", err)
+		}
+		actions = append(actions, a)
+	}
+	return actions, rows.Err()
+}
+
 // RecordAction inserts an operator action record.
 func (r *Repository) RecordAction(transferID, action, operatorID, note, contributionTypeOverride string) (*Action, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
