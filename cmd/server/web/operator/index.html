@@ -3,422 +3,701 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Checkstream — Operator Review</title>
+  <title>CheckDepot — Operator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0d1117;
-      --bg-card: #161b22;
-      --bg-hover: #21262d;
-      --border: #30363d;
-      --text: #e6edf3;
-      --text-muted: #8b949e;
-      --accent: #58a6ff;
-      --success: #3fb950;
-      --fail: #f85149;
-      --warn: #d29922;
+      --background: #F2F3F0;
+      --card: #FFFFFF;
+      --primary: #FF8400;
+      --primary-foreground: #111111;
+      --foreground: #111111;
+      --muted-foreground: #666666;
+      --border: #CBCCC9;
+      --secondary: #E7E8E5;
+      --sidebar: #E7E8E5;
+      --sidebar-border: #CBCCC9;
+      --sidebar-foreground: #666666;
+      --sidebar-accent: #CBCCC9;
+      --destructive: #D93C15;
+      --color-success: #DFE6E1;
+      --color-success-foreground: #004D1A;
+      --color-error: #E5DCDA;
+      --color-error-foreground: #8C1C00;
+      --color-warning: #E9E3D8;
+      --color-warning-foreground: #804200;
+      --radius-m: 16px;
+      --radius-pill: 999px;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Geist', system-ui, sans-serif;
+      --sidebar-w: 220px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+    body { font-family: var(--font-sans); background: var(--background); color: var(--foreground); min-height: 100vh; display: flex; }
 
-    /* Nav */
-    nav { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0 1.5rem; display: flex; align-items: center; gap: 0; }
-    .nav-brand { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 700; padding: 0.9rem 0; margin-right: 2rem; }
-    .nav-link { padding: 0.9rem 1rem; font-size: 0.9rem; font-weight: 500; color: var(--text-muted); text-decoration: none; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
-    .nav-link:hover { color: var(--text); }
-    .nav-link.active { color: var(--accent); border-bottom-color: var(--accent); }
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--sidebar);
+      border-right: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 10;
+    }
+    .sidebar-logo {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--sidebar-border);
+    }
+    .sidebar-logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      letter-spacing: -0.02em;
+    }
+    .sidebar-section { padding: 16px 12px 4px; }
+    .sidebar-section-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.07em; padding: 0 8px 8px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--sidebar-foreground);
+      margin-bottom: 2px;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: var(--sidebar-accent); color: var(--foreground); }
+    .nav-item.active { background: var(--card); color: var(--foreground); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid var(--sidebar-border); }
+    .sidebar-user { font-size: 13px; font-weight: 600; }
+    .sidebar-user-email { font-size: 12px; color: var(--muted-foreground); }
 
-    .api-bar { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1.5rem; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-    .api-bar label { color: var(--text-muted); }
-    .api-bar input { flex: 1; max-width: 320px; padding: 0.4rem 0.6rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; }
-    .api-bar .status { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-    .api-bar .status.ok { background: rgba(63,185,80,.2); color: var(--success); }
-    .api-bar .status.err { background: rgba(248,81,73,.2); color: var(--fail); }
-    .api-bar .status.pending { color: var(--text-muted); }
+    /* ── Main ── */
+    .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
 
-    .main { display: flex; height: calc(100vh - 96px); overflow: hidden; }
+    /* ── Views ── */
+    .view { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .view.active { display: flex; }
 
-    /* Queue panel */
-    .queue-panel { flex: 0 0 380px; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg); overflow: hidden; }
-    .queue-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .queue-header h2 { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
-    .queue-header .filters { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
-    .queue-header .filters input { padding: 0.3rem 0.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-size: 0.8rem; width: 120px; }
-    .queue-header .filters button { padding: 0.3rem 0.75rem; background: var(--accent); color: var(--bg); border: none; border-radius: 5px; font-size: 0.8rem; cursor: pointer; font-weight: 600; }
-    .queue-list { flex: 1; overflow-y: auto; padding: 0.75rem; }
-    .queue-empty { padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
-    .queue-error { padding: 1rem; color: var(--fail); font-size: 0.85rem; }
-    .queue-loading { padding: 1rem; color: var(--text-muted); font-size: 0.85rem; }
+    /* ── Queue View ── */
+    .queue-header { padding: 24px 28px 0; }
+    .queue-title { font-size: 24px; font-weight: 700; }
+    .queue-subtitle { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; }
+    .queue-search {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius-pill);
+      padding: 0 16px; height: 36px; width: 240px;
+    }
+    .queue-search input { flex: 1; border: none; background: none; font-size: 13px; font-family: var(--font-sans); color: var(--foreground); outline: none; }
+    .queue-search input::placeholder { color: var(--muted-foreground); }
 
-    .queue-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; padding: 0.9rem 1rem; cursor: pointer; transition: border-color 0.15s; }
-    .queue-card:hover { border-color: var(--accent); }
-    .queue-card.selected { border-color: var(--accent); background: var(--bg-hover); }
-    .queue-card-id { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.3rem; }
-    .queue-card-account { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; }
-    .queue-card-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .badge { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; }
-    .badge-amount { background: rgba(88,166,255,.15); color: var(--accent); }
-    .badge-warn { background: rgba(210,153,34,.15); color: var(--warn); }
-    .badge-muted { background: var(--bg-hover); color: var(--text-muted); }
+    /* Stats */
+    .stats-row { display: flex; gap: 16px; padding: 20px 28px 0; }
+    .stat-card { background: var(--card); border-radius: var(--radius-m); padding: 16px 20px; flex: 1; }
+    .stat-label { font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px; }
+    .stat-value-row { display: flex; align-items: center; gap: 10px; }
+    .stat-number { font-size: 28px; font-weight: 700; }
+    .stat-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); }
+    .stat-badge.urgent { background: var(--color-error); color: var(--color-error-foreground); }
+    .stat-badge.review { background: var(--color-warning); color: var(--color-warning-foreground); }
 
-    /* Detail panel */
-    .detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .detail-placeholder { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text-muted); font-size: 0.9rem; }
-    .detail-content { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    .detail-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: flex-start; gap: 1rem; }
-    .detail-header-info { flex: 1; }
-    .detail-header h2 { font-size: 1rem; font-weight: 700; margin-bottom: 0.2rem; }
-    .detail-header .detail-id { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); }
-    .detail-body { flex: 1; overflow-y: auto; padding: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-content: start; }
+    /* Filter tabs */
+    .filter-tabs { display: flex; gap: 4px; padding: 16px 28px 0; }
+    .filter-tab {
+      padding: 6px 16px;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; color: var(--muted-foreground);
+    }
+    .filter-tab.active { border-color: var(--foreground); background: var(--foreground); color: #fff; }
 
-    .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
-    .info-card h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.75rem; }
-    .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.85rem; }
-    .info-row .label { color: var(--text-muted); }
-    .info-row .val { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
-    .info-row .val.mismatch { color: var(--fail); font-weight: 600; }
-    .info-row .val.match { color: var(--success); }
-    .micr-bar { height: 6px; border-radius: 3px; background: var(--bg-hover); margin-top: 0.5rem; overflow: hidden; }
-    .micr-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    /* Table */
+    .table-wrap { flex: 1; overflow-y: auto; padding: 16px 28px 28px; }
+    .table-container { background: var(--card); border-radius: var(--radius-m); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead tr { border-bottom: 1px solid var(--border); }
+    thead th { padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted-foreground); white-space: nowrap; }
+    thead th input[type=checkbox] { cursor: pointer; }
+    tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--background); }
+    tbody td { padding: 12px 16px; white-space: nowrap; }
+    td.mono { font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); }
+    .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted-foreground); }
+    .page-btn { padding: 6px 16px; border-radius: 6px; border: 1.5px solid var(--border); background: var(--card); font-size: 13px; cursor: pointer; font-family: var(--font-sans); }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .images-card { grid-column: 1 / -1; }
-    .images-grid { display: flex; gap: 1rem; flex-wrap: wrap; }
-    .check-thumb { background: var(--bg-hover); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; text-align: center; min-width: 140px; }
-    .check-thumb p { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem; }
-    .check-thumb img { max-width: 160px; max-height: 100px; border-radius: 4px; display: block; }
-    .check-thumb .no-img { width: 160px; height: 80px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 0.75rem; background: var(--bg); border-radius: 4px; }
+    /* Badges */
+    .badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); display: inline-block; }
+    .badge-flagged { background: var(--color-error); color: var(--color-error-foreground); }
+    .badge-approved { background: var(--color-success); color: var(--color-success-foreground); }
+    .badge-rejected { background: var(--secondary); color: var(--muted-foreground); }
+    .badge-analyzing { background: var(--color-warning); color: var(--color-warning-foreground); }
+    .badge-high { background: var(--color-error); color: var(--color-error-foreground); }
+    .badge-medium { background: var(--color-warning); color: var(--color-warning-foreground); }
+    .badge-low { background: var(--secondary); color: var(--muted-foreground); }
+    .flag-reason { background: var(--color-warning); color: var(--color-warning-foreground); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); display: inline-block; }
+    .flag-reason.micr { background: var(--color-error); color: var(--color-error-foreground); }
+    .flag-reason.duplicate { background: var(--secondary); color: var(--muted-foreground); }
 
-    .actions-card { grid-column: 1 / -1; }
-    .actions-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0; }
-    .override-group { display: flex; flex-direction: column; gap: 0.3rem; }
-    .override-group label { font-size: 0.8rem; color: var(--text-muted); }
-    .override-group select { padding: 0.4rem 0.6rem; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; }
-    .btn { padding: 0.5rem 1.25rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; }
-    .btn:hover { opacity: 0.88; }
-    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn-approve { background: var(--success); color: #0d1117; }
-    .btn-reject { background: var(--fail); color: #fff; }
-    .action-feedback { margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; display: none; }
-    .action-feedback.ok { background: rgba(63,185,80,.15); color: var(--success); display: block; }
-    .action-feedback.err { background: rgba(248,81,73,.15); color: var(--fail); display: block; }
-
-    .audit-card { grid-column: 1 / -1; }
-    .audit-list { display: flex; flex-direction: column; gap: 0.5rem; }
-    .audit-item { background: var(--bg-hover); border-radius: 6px; padding: 0.6rem 0.8rem; display: flex; align-items: baseline; gap: 0.75rem; font-size: 0.82rem; }
-    .audit-action { font-weight: 600; text-transform: capitalize; }
-    .audit-action.approve { color: var(--success); }
-    .audit-action.reject { color: var(--fail); }
-    .audit-meta { color: var(--text-muted); font-size: 0.77rem; font-family: 'JetBrains Mono', monospace; }
-    .audit-empty { color: var(--text-muted); font-size: 0.85rem; }
+    /* ── Detail View ── */
+    .detail-inner { flex: 1; overflow-y: auto; padding: 0 28px 28px; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted-foreground); padding: 16px 0 0; }
+    .breadcrumb a { color: var(--muted-foreground); text-decoration: none; cursor: pointer; }
+    .breadcrumb a:hover { color: var(--foreground); }
+    .breadcrumb-sep { color: var(--border); }
+    .detail-title-row { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 20px; }
+    .detail-title { font-size: 24px; font-weight: 700; }
+    .detail-subtitle { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; }
+    .detail-actions { display: flex; gap: 10px; }
+    .action-btn { padding: 8px 20px; border-radius: var(--radius-pill); font-size: 14px; font-weight: 700; cursor: pointer; border: none; font-family: var(--font-sans); }
+    .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-reject  { background: var(--color-error); color: var(--color-error-foreground); }
+    .btn-approve { background: var(--primary); color: var(--primary-foreground); }
+    .detail-columns { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
+    .detail-col { display: flex; flex-direction: column; gap: 20px; }
+    .d-card { background: var(--card); border-radius: var(--radius-m); padding: 20px; }
+    .d-card-title { font-size: 14px; font-weight: 700; margin-bottom: 16px; }
+    .d-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .d-row:last-child { border-bottom: none; }
+    .d-lbl { color: var(--muted-foreground); }
+    .d-val { font-weight: 600; }
+    .check-images { display: flex; gap: 12px; }
+    .check-img-box { flex: 1; background: var(--secondary); border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
+    .check-img-box img { width: 100%; height: 100%; object-fit: contain; }
+    .check-img-label { font-size: 12px; color: var(--muted-foreground); margin-top: 6px; text-align: center; }
+    .check-img-wrap { flex: 1; }
+    .risk-alert { background: var(--color-warning); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+    .risk-alert-title { font-size: 13px; font-weight: 700; color: var(--color-warning-foreground); }
+    .risk-alert-body { font-size: 12px; color: var(--color-warning-foreground); margin-top: 4px; }
+    .audit-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .audit-item:last-child { border-bottom: none; }
+    .audit-action { font-weight: 700; text-transform: capitalize; min-width: 60px; }
+    .audit-action.approve { color: var(--color-success-foreground); }
+    .audit-action.reject  { color: var(--color-error-foreground); }
+    .audit-meta { color: var(--muted-foreground); font-size: 12px; }
+    .action-feedback { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: none; }
+    .action-feedback.ok  { background: var(--color-success); color: var(--color-success-foreground); display: block; }
+    .action-feedback.err { background: var(--color-error); color: var(--color-error-foreground); display: block; }
+    .empty-row td { text-align: center; padding: 40px; color: var(--muted-foreground); }
   </style>
 </head>
 <body>
-  <nav>
-    <span class="nav-brand">Checkstream</span>
-    <a href="/scenarios" class="nav-link">Scenarios</a>
-    <a href="/operator" class="nav-link active">Operator</a>
-  </nav>
-  <div class="api-bar">
-    <label for="apiBase">API:</label>
-    <input type="text" id="apiBase" placeholder="http://localhost:8080">
-    <span id="apiStatus" class="status pending">—</span>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+      </svg>
+      CHECKDEPOT
+    </div>
   </div>
 
-  <div class="main">
-    <!-- Queue panel -->
-    <div class="queue-panel">
-      <div class="queue-header">
-        <h2>Flagged Queue</h2>
-        <div class="filters">
-          <input type="text" id="filterDate" placeholder="Date (YYYY-MM-DD)">
-          <input type="text" id="filterAccount" placeholder="Account ID">
-          <button id="refreshBtn">Refresh</button>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Operations</div>
+    <button class="nav-item active" id="navReviewQueue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+      Review Queue
+    </button>
+    <button class="nav-item" id="navSettlement">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+      </svg>
+      Settlement
+    </button>
+    <button class="nav-item" id="navAuditLog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      Audit Log
+    </button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Management</div>
+    <button class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      Accounts
+    </button>
+    <button class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93a10 10 0 0 1 1.41 13.5M4.93 4.93a10 10 0 0 0-1.41 13.5"/>
+      </svg>
+      Settings
+    </button>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user">Joe Doe</div>
+    <div class="sidebar-user-email">joe@checkdepot.com</div>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- ── Queue View ── -->
+  <div class="view active" id="viewQueue">
+    <div class="queue-header">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="queue-title">Review Queue</div>
+          <div class="queue-subtitle">Flagged deposits requiring operator review</div>
         </div>
-      </div>
-      <div class="queue-list" id="queueList">
-        <p class="queue-loading">Loading…</p>
+        <div class="queue-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input type="text" id="queueSearch" placeholder="Search deposits...">
+        </div>
       </div>
     </div>
 
-    <!-- Detail panel -->
-    <div class="detail-panel" id="detailPanel">
-      <div class="detail-placeholder" id="detailPlaceholder">
-        Select a flagged deposit to review
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Pending Review</div>
+        <div class="stat-value-row">
+          <div class="stat-number" id="statPending">—</div>
+          <span class="stat-badge urgent" id="statUrgentBadge" style="display:none"></span>
+        </div>
       </div>
-      <div class="detail-content" id="detailContent" style="display:none">
-        <div class="detail-header">
-          <div class="detail-header-info">
-            <h2 id="detailAccount">Account</h2>
-            <div class="detail-id" id="detailId"></div>
+      <div class="stat-card">
+        <div class="stat-label">Approved Today</div>
+        <div class="stat-value-row">
+          <div class="stat-number" id="statApproved">—</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rejected Today</div>
+        <div class="stat-value-row">
+          <div class="stat-number" id="statRejected">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-filter="all">All</button>
+      <button class="filter-tab" data-filter="flagged">Flagged</button>
+      <button class="filter-tab" data-filter="micr">MICR Failure</button>
+      <button class="filter-tab" data-filter="mismatch">Amount Mismatch</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="selectAll"></th>
+              <th>Deposit ID</th>
+              <th>Investor</th>
+              <th>Amount</th>
+              <th>Flag Reason</th>
+              <th>Risk</th>
+              <th>Status</th>
+              <th>Submitted</th>
+            </tr>
+          </thead>
+          <tbody id="queueTbody">
+            <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted-foreground)">Loading…</td></tr>
+          </tbody>
+        </table>
+        <div class="table-footer">
+          <span id="tableInfo">—</span>
+          <div style="display:flex;gap:8px">
+            <button class="page-btn" id="prevBtn" disabled>Previous</button>
+            <button class="page-btn" id="nextBtn" disabled>Next</button>
           </div>
         </div>
-        <div class="detail-body">
-          <!-- Amounts & Risk -->
-          <div class="info-card">
-            <h3>Amounts</h3>
-            <div class="info-row"><span class="label">Entered</span><span class="val" id="dEntered">—</span></div>
-            <div class="info-row"><span class="label">OCR Read</span><span class="val" id="dOCR">—</span></div>
-            <div class="info-row"><span class="label">Match</span><span class="val" id="dAmountMatch">—</span></div>
-          </div>
-          <!-- Scores -->
-          <div class="info-card">
-            <h3>Risk Scores</h3>
-            <div class="info-row"><span class="label">IQ Score</span><span class="val" id="dIQ">—</span></div>
-            <div class="info-row"><span class="label">MICR Confidence</span><span class="val" id="dMICR">—</span></div>
-            <div style="margin-top:0.5rem">
-              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem">MICR Confidence</div>
-              <div class="micr-bar"><div class="micr-bar-fill" id="micrBarFill" style="width:0%;background:var(--warn)"></div></div>
-            </div>
-          </div>
-          <!-- Images -->
-          <div class="info-card images-card">
-            <h3>Check Images</h3>
-            <div class="images-grid" id="imagesGrid"></div>
-          </div>
-          <!-- Actions -->
-          <div class="info-card actions-card">
-            <h3>Review Actions</h3>
-            <div class="actions-row">
-              <div class="override-group">
-                <label for="contributionOverride">Contribution Type Override</label>
-                <select id="contributionOverride">
-                  <option value="">(use default)</option>
-                  <option value="checking">Checking</option>
-                  <option value="savings">Savings</option>
-                  <option value="money_market">Money Market</option>
-                </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Detail View ── -->
+  <div class="view" id="viewDetail">
+    <div class="detail-inner">
+      <div class="breadcrumb">
+        <a id="breadcrumbBack">← Review Queue</a>
+        <span class="breadcrumb-sep">/</span>
+        <span id="breadcrumbId">—</span>
+      </div>
+
+      <div class="detail-title-row">
+        <div>
+          <div class="detail-title" id="detailTitle">Deposit —</div>
+          <div class="detail-subtitle" id="detailSubtitle">—</div>
+        </div>
+        <div class="detail-actions">
+          <button class="action-btn btn-reject"  id="detailRejectBtn">Reject</button>
+          <button class="action-btn btn-approve" id="detailApproveBtn">Approve</button>
+        </div>
+      </div>
+      <div id="actionFeedback" class="action-feedback"></div>
+
+      <div class="detail-columns">
+        <!-- Left column -->
+        <div class="detail-col">
+          <div class="d-card">
+            <div class="d-card-title">Check Images</div>
+            <div class="check-images">
+              <div class="check-img-wrap">
+                <div class="check-img-box" id="detailFrontImg">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </div>
+                <div class="check-img-label">Front of Check</div>
               </div>
-              <button class="btn btn-approve" id="approveBtn">Approve</button>
-              <button class="btn btn-reject" id="rejectBtn">Reject</button>
+              <div class="check-img-wrap">
+                <div class="check-img-box" id="detailBackImg">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </div>
+                <div class="check-img-label">Back of Check</div>
+              </div>
             </div>
-            <div class="action-feedback" id="actionFeedback"></div>
           </div>
-          <!-- Audit -->
-          <div class="info-card audit-card">
-            <h3>Audit History</h3>
-            <div class="audit-list" id="auditList"><p class="audit-empty">No actions yet</p></div>
+
+          <div class="d-card">
+            <div class="d-card-title">Deposit Details</div>
+            <div class="d-row"><span class="d-lbl">Amount (entered)</span><span class="d-val" id="ddEntered">—</span></div>
+            <div class="d-row"><span class="d-lbl">A value (OCR)</span><span class="d-val" id="ddOCR">—</span></div>
+            <div class="d-row"><span class="d-lbl">Account</span><span class="d-val" id="ddAccount">—</span></div>
+            <div class="d-row"><span class="d-lbl">Check Number</span><span class="d-val" id="ddCheckNum">—</span></div>
+            <div class="d-row"><span class="d-lbl">Status</span><span class="d-val" id="ddStatus">—</span></div>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div class="detail-col">
+          <div class="d-card">
+            <div class="d-card-title">MICR Data</div>
+            <div class="d-row"><span class="d-lbl">Routing #</span><span class="d-val mono" id="ddRouting">—</span></div>
+            <div class="d-row"><span class="d-lbl">Acct #</span><span class="d-val mono" id="ddMICRAcct">—</span></div>
+            <div class="d-row"><span class="d-lbl">Check #</span><span class="d-val mono" id="ddMICRCheck">—</span></div>
+            <div class="d-row"><span class="d-lbl">Confidence</span><span class="d-val" id="ddMICRConf">—</span></div>
+          </div>
+
+          <div class="d-card">
+            <div class="d-card-title">Risk Assessment</div>
+            <div id="riskAlert" class="risk-alert" style="display:none">
+              <div class="risk-alert-title" id="riskAlertTitle">—</div>
+              <div class="risk-alert-body" id="riskAlertBody">—</div>
+            </div>
+            <div class="d-row"><span class="d-lbl">Risk Score</span><span class="d-val" id="ddRisk">—</span></div>
+            <div class="d-row"><span class="d-lbl">IQ Score</span><span class="d-val" id="ddIQ">—</span></div>
+            <div class="d-row"><span class="d-lbl">Under Limit</span><span class="d-val" id="ddLimit">—</span></div>
+          </div>
+
+          <div class="d-card">
+            <div class="d-card-title">Audit Log</div>
+            <div id="auditList"><div style="color:var(--muted-foreground);font-size:13px">No actions yet</div></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    const $ = id => document.getElementById(id);
+</div><!-- /main -->
 
-    function apiBase() {
-      return ($('apiBase').value || '').trim() || (location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin);
+<script>
+const $ = id => document.getElementById(id);
+
+// ── State ──
+let allTransfers = [];
+let filteredTransfers = [];
+let selectedTransfer = null;
+let currentPage = 0;
+const PAGE_SIZE = 10;
+let activeFilter = 'all';
+
+function apiBase() {
+  return location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
+}
+function fmt(n) { return typeof n === 'number' ? '$' + n.toFixed(2) : (n || '—'); }
+function fmtPct(n) { return typeof n === 'number' ? (n * 100).toFixed(1) + '%' : '—'; }
+function fmtDate(s) {
+  if (!s) return '—';
+  try { return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit',hour:'2-digit',minute:'2-digit'}); } catch(e) { return s; }
+}
+function riskLevel(t) {
+  const micr = t.micr_confidence || t.MICRConfidence || 0;
+  const mismatch = t.ocr_amount && t.entered_amount && Math.abs(t.ocr_amount - t.entered_amount) > 0.01;
+  if (micr < 0.4 || mismatch) return 'High';
+  if (micr < 0.7) return 'Medium';
+  return 'Low';
+}
+function flagReason(t) {
+  const micr = t.micr_confidence || t.MICRConfidence || 0;
+  const mismatch = t.ocr_amount && t.entered_amount && Math.abs(t.ocr_amount - t.entered_amount) > 0.01;
+  let vr = {};
+  try { vr = JSON.parse(t.vendor_response || '{}'); } catch(e) {}
+  if (vr.reason === 'duplicate') return { label: 'Duplicate', cls: 'duplicate' };
+  if (micr < 0.6) return { label: 'MICR Failure', cls: 'micr' };
+  if (mismatch) return { label: 'Amount Mismatch', cls: '' };
+  if (vr.reason) return { label: vr.reason.replace(/_/g,' '), cls: '' };
+  return { label: 'Flagged', cls: '' };
+}
+
+// ── Views ──
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+// ── Load Queue ──
+async function loadQueue() {
+  try {
+    const r = await fetch(`${apiBase()}/operator/queue`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    allTransfers = data.transfers || [];
+    updateStats();
+    applyFilter(activeFilter);
+  } catch(e) {
+    $('queueTbody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--destructive)">Error: ${e.message}</td></tr>`;
+  }
+}
+
+function updateStats() {
+  $('statPending').textContent = allTransfers.length;
+  if (allTransfers.length > 0) {
+    $('statUrgentBadge').style.display = 'inline';
+    $('statUrgentBadge').textContent = `Urgent ${Math.min(allTransfers.length, 3)}`;
+  }
+  // Approved/Rejected today: approximate from transfers not in Analyzing
+  $('statApproved').textContent = '—';
+  $('statRejected').textContent = '—';
+}
+
+function applyFilter(filter) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.filter === filter);
+  });
+  if (filter === 'all') {
+    filteredTransfers = [...allTransfers];
+  } else if (filter === 'flagged') {
+    filteredTransfers = allTransfers.filter(t => {
+      let vr = {}; try { vr = JSON.parse(t.vendor_response||'{}'); } catch(e) {}
+      return vr.reason && vr.reason !== 'duplicate';
+    });
+  } else if (filter === 'micr') {
+    filteredTransfers = allTransfers.filter(t => (t.micr_confidence || t.MICRConfidence || 0) < 0.6);
+  } else if (filter === 'mismatch') {
+    filteredTransfers = allTransfers.filter(t =>
+      t.ocr_amount && t.entered_amount && Math.abs(t.ocr_amount - t.entered_amount) > 0.01);
+  }
+
+  const q = $('queueSearch').value.toLowerCase();
+  if (q) {
+    filteredTransfers = filteredTransfers.filter(t =>
+      t.id?.toLowerCase().includes(q) || t.account_id?.toLowerCase().includes(q));
+  }
+
+  currentPage = 0;
+  renderTable();
+}
+
+function renderTable() {
+  const start = currentPage * PAGE_SIZE;
+  const page = filteredTransfers.slice(start, start + PAGE_SIZE);
+  const total = filteredTransfers.length;
+
+  if (!page.length) {
+    $('queueTbody').innerHTML = `<tr class="empty-row"><td colspan="8">No deposits match this filter</td></tr>`;
+  } else {
+    $('queueTbody').innerHTML = page.map(t => {
+      const risk = riskLevel(t);
+      const fr = flagReason(t);
+      const riskCls = risk === 'High' ? 'badge-high' : risk === 'Medium' ? 'badge-medium' : 'badge-low';
+      return `<tr data-id="${t.id}">
+        <td><input type="checkbox"></td>
+        <td class="mono">DEP-${t.id.slice(0,5).toUpperCase()}</td>
+        <td>${t.account_id}</td>
+        <td>${fmt(t.amount)}</td>
+        <td><span class="flag-reason ${fr.cls}">${fr.label}</span></td>
+        <td><span class="badge ${riskCls}">${risk}</span></td>
+        <td><span class="badge badge-flagged">Flagged</span></td>
+        <td>${fmtDate(t.created_at)}</td>
+      </tr>`;
+    }).join('');
+    $('queueTbody').querySelectorAll('tr[data-id]').forEach(row => {
+      row.onclick = () => {
+        const t = allTransfers.find(x => x.id === row.dataset.id);
+        if (t) openDetail(t);
+      };
+    });
+  }
+
+  $('tableInfo').textContent = `Showing ${start+1}–${Math.min(start+page.length, total)} of ${total} flagged deposits`;
+  $('prevBtn').disabled = currentPage === 0;
+  $('nextBtn').disabled = start + PAGE_SIZE >= total;
+}
+
+$('prevBtn').onclick = () => { currentPage--; renderTable(); };
+$('nextBtn').onclick = () => { currentPage++; renderTable(); };
+
+document.querySelectorAll('.filter-tab').forEach(tab => {
+  tab.onclick = () => applyFilter(tab.dataset.filter);
+});
+
+$('queueSearch').oninput = () => applyFilter(activeFilter);
+
+// ── Detail ──
+function openDetail(t) {
+  selectedTransfer = t;
+
+  const shortId = 'DEP-' + t.id.slice(0,5).toUpperCase();
+  $('breadcrumbId').textContent = shortId;
+  $('detailTitle').textContent = `Deposit ${shortId}`;
+
+  let vr = {}; try { vr = JSON.parse(t.vendor_response||'{}'); } catch(e) {}
+  let micr = {}; try { micr = JSON.parse(t.micr_data||'{}'); } catch(e) {}
+
+  const micrConf = t.micr_confidence || t.MICRConfidence || vr.micr_confidence || 0;
+  const iqScore  = t.iq_score || t.IQScore || vr.iq_score || 0;
+
+  $('detailSubtitle').textContent = `Submitted ${fmtDate(t.created_at)} · ${t.account_id}`;
+
+  $('ddEntered').textContent = fmt(t.entered_amount || t.amount);
+  $('ddOCR').textContent = t.ocr_amount ? fmt(t.ocr_amount) : '(not read)';
+  $('ddAccount').textContent = t.account_id || '—';
+  $('ddCheckNum').textContent = micr.checkNumber || t.transaction_id?.slice(0,8) || '—';
+  $('ddStatus').innerHTML = `<span class="badge badge-flagged">Flagged</span>`;
+
+  $('ddRouting').textContent = micr.routing || '—';
+  $('ddMICRAcct').textContent = micr.account ? '****' + micr.account.slice(-4) : '—';
+  $('ddMICRCheck').textContent = micr.checkNumber || '—';
+  $('ddMICRConf').textContent = micrConf ? fmtPct(micrConf) : '—';
+
+  const mismatch = t.ocr_amount && t.entered_amount && Math.abs(t.ocr_amount - t.entered_amount) > 0.01;
+  const risk = riskLevel(t);
+  const fr = flagReason(t);
+  if (mismatch || micrConf < 0.6) {
+    $('riskAlert').style.display = 'block';
+    $('riskAlertTitle').textContent = fr.label + ' Detected';
+    $('riskAlertBody').textContent = mismatch
+      ? `User entered ${fmt(t.entered_amount)} but OCR reads ${fmt(t.ocr_amount)}.`
+      : `MICR confidence is low (${fmtPct(micrConf)}).`;
+  } else {
+    $('riskAlert').style.display = 'none';
+  }
+
+  $('ddRisk').textContent = `${risk} (${Math.round((micrConf || 0.5) * 100)}/${Math.round((1-(micrConf||0.5))*100)})`;
+  $('ddIQ').textContent = iqScore ? fmtPct(iqScore) : '—';
+  $('ddLimit').textContent = t.amount <= 10000 ? `Yes ($10,000 max)` : 'No — over limit';
+
+  // Images
+  const base = apiBase();
+  const front = $('detailFrontImg');
+  const back  = $('detailBackImg');
+  if (t.front_image_path) {
+    front.innerHTML = `<img src="${base}/checks/${encodeURIComponent(t.front_image_path)}" onerror="this.outerHTML='<span style=\\'color:#999;font-size:12px\\'>Unavail.</span>'">`;
+  }
+  if (t.back_image_path) {
+    back.innerHTML = `<img src="${base}/checks/${encodeURIComponent(t.back_image_path)}" onerror="this.outerHTML='<span style=\\'color:#999;font-size:12px\\'>Unavail.</span>'">`;
+  }
+
+  $('actionFeedback').className = 'action-feedback';
+  $('detailApproveBtn').disabled = false;
+  $('detailRejectBtn').disabled  = false;
+
+  loadAudit(t.id);
+  showView('viewDetail');
+}
+
+async function loadAudit(transferId) {
+  const el = $('auditList');
+  try {
+    const r = await fetch(`${apiBase()}/operator/actions/${transferId}`);
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    const actions = data.actions || [];
+    if (!actions.length) { el.innerHTML = '<div style="color:var(--muted-foreground);font-size:13px">No actions yet</div>'; return; }
+    el.innerHTML = actions.map(a => `
+      <div class="audit-item">
+        <span class="audit-action ${a.action}">${a.action}</span>
+        <div><div>${a.operator_id}</div><div class="audit-meta">${fmtDate(a.created_at)}${a.note ? ' · ' + a.note : ''}</div></div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--destructive);font-size:13px">Could not load audit</div>';
+  }
+}
+
+async function doAction(action) {
+  if (!selectedTransfer) return;
+  const fb = $('actionFeedback');
+  $('detailApproveBtn').disabled = true;
+  $('detailRejectBtn').disabled  = true;
+  fb.className = 'action-feedback';
+  fb.textContent = 'Processing…';
+  fb.style.display = 'block';
+  try {
+    const body = { transfer_id: selectedTransfer.id, operator_id: 'operator-1', note: '' };
+    const r = await fetch(`${apiBase()}/operator/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      fb.className = 'action-feedback ok';
+      fb.textContent = `${action === 'approve' ? 'Approved' : 'Rejected'} — state: ${j.state}`;
+      allTransfers = allTransfers.filter(x => x.id !== selectedTransfer.id);
+      applyFilter(activeFilter);
+      setTimeout(() => { showView('viewQueue'); }, 1200);
+    } else {
+      fb.className = 'action-feedback err';
+      fb.textContent = `Error: ${j.error || r.status}`;
+      $('detailApproveBtn').disabled = false;
+      $('detailRejectBtn').disabled  = false;
     }
+  } catch(e) {
+    fb.className = 'action-feedback err';
+    fb.textContent = `Error: ${e.message}`;
+    $('detailApproveBtn').disabled = false;
+    $('detailRejectBtn').disabled  = false;
+  }
+}
 
-    function fmt(n) { return typeof n === 'number' ? '$' + n.toFixed(2) : n || '—'; }
-    function fmtPct(n) { return typeof n === 'number' ? (n * 100).toFixed(1) + '%' : '—'; }
+$('detailApproveBtn').onclick = () => doAction('approve');
+$('detailRejectBtn').onclick  = () => doAction('reject');
+$('breadcrumbBack').onclick   = () => showView('viewQueue');
 
-    let selectedTransfer = null;
-    let queueItems = [];
-    const POLL_INTERVAL_MS = 5000;
-    let pollTimer = null;
+// sidebar nav
+$('navReviewQueue').onclick = () => { showView('viewQueue'); document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); $('navReviewQueue').classList.add('active'); };
+$('navSettlement').onclick  = () => { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); $('navSettlement').classList.add('active'); };
+$('navAuditLog').onclick    = () => { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); $('navAuditLog').classList.add('active'); };
 
-    async function loadQueue(silent = false) {
-      const list = $('queueList');
-      if (!silent) list.innerHTML = '<p class="queue-loading">Loading…</p>';
-      const base = apiBase();
-      let url = `${base}/operator/queue`;
-      const date = $('filterDate').value.trim();
-      const acct = $('filterAccount').value.trim();
-      const params = new URLSearchParams();
-      if (date) params.set('date', date);
-      if (acct) params.set('account', acct);
-      if ([...params].length) url += '?' + params.toString();
-      try {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
-        queueItems = data.transfers || [];
-        renderQueue();
-        await checkAPIStatus();
-      } catch(e) {
-        list.innerHTML = `<p class="queue-error">Error: ${e.message}</p>`;
-      }
-    }
-
-    function renderQueue() {
-      const list = $('queueList');
-      if (!queueItems.length) { list.innerHTML = '<p class="queue-empty">No flagged deposits</p>'; return; }
-      list.innerHTML = queueItems.map(t => {
-        const micr = typeof t.micr_confidence === 'number' ? t.micr_confidence : (t.MICRConfidence || 0);
-        const iq = typeof t.iq_score === 'number' ? t.iq_score : (t.IQScore || 0);
-        const mismatch = t.ocr_amount && t.entered_amount && Math.abs(t.ocr_amount - t.entered_amount) > 0.01;
-        return `<div class="queue-card${selectedTransfer?.id === t.id ? ' selected' : ''}" data-id="${t.id}">
-          <div class="queue-card-id">${t.id}</div>
-          <div class="queue-card-account">${t.account_id}</div>
-          <div class="queue-card-meta">
-            <span class="badge badge-amount">${fmt(t.amount)}</span>
-            ${micr < 0.7 ? `<span class="badge badge-warn">MICR ${fmtPct(micr)}</span>` : `<span class="badge badge-muted">MICR ${fmtPct(micr)}</span>`}
-            ${mismatch ? `<span class="badge badge-warn">Amount mismatch</span>` : ''}
-            ${iq > 0 ? `<span class="badge badge-muted">IQ ${fmtPct(iq)}</span>` : ''}
-          </div>
-        </div>`;
-      }).join('');
-      list.querySelectorAll('.queue-card').forEach(card => {
-        card.onclick = () => {
-          const t = queueItems.find(x => x.id === card.dataset.id);
-          if (t) selectTransfer(t);
-        };
-      });
-    }
-
-    function selectTransfer(t) {
-      selectedTransfer = t;
-      renderQueue();
-      $('detailPlaceholder').style.display = 'none';
-      $('detailContent').style.display = 'flex';
-      $('detailAccount').textContent = t.account_id;
-      $('detailId').textContent = t.id;
-
-      const entered = t.entered_amount || t.amount;
-      const ocr = t.ocr_amount;
-      $('dEntered').textContent = fmt(entered);
-      $('dOCR').textContent = ocr ? fmt(ocr) : '(not read)';
-      const mismatch = ocr && Math.abs(ocr - entered) > 0.01;
-      const matchEl = $('dAmountMatch');
-      matchEl.textContent = ocr ? (mismatch ? 'Mismatch' : 'Match') : '—';
-      matchEl.className = 'val' + (ocr ? (mismatch ? ' mismatch' : ' match') : '');
-
-      const iq = t.iq_score || t.IQScore || 0;
-      const micr = t.micr_confidence || t.MICRConfidence || 0;
-      $('dIQ').textContent = iq ? fmtPct(iq) : '—';
-      $('dMICR').textContent = micr ? fmtPct(micr) : '—';
-
-      const fill = $('micrBarFill');
-      fill.style.width = micr ? (micr * 100).toFixed(0) + '%' : '0%';
-      fill.style.background = micr > 0.8 ? 'var(--success)' : micr > 0.5 ? 'var(--warn)' : 'var(--fail)';
-
-      // Images
-      const grid = $('imagesGrid');
-      const front = t.front_image_path;
-      const back = t.back_image_path;
-      grid.innerHTML = [['Front', front], ['Back', back]].map(([label, path]) => {
-        const imgHtml = path
-          ? `<img src="${apiBase()}/checks/${encodeURIComponent(path)}" onerror="this.outerHTML='<div class=\\'no-img\\'>Image unavailable</div>'">`
-          : `<div class="no-img">No image</div>`;
-        return `<div class="check-thumb">${imgHtml}<p>${label}</p></div>`;
-      }).join('');
-
-      $('actionFeedback').className = 'action-feedback';
-      $('actionFeedback').textContent = '';
-      $('approveBtn').disabled = false;
-      $('rejectBtn').disabled = false;
-
-      loadAudit(t.id);
-    }
-
-    async function loadAudit(transferId) {
-      const base = apiBase();
-      const auditList = $('auditList');
-      auditList.innerHTML = '<p class="audit-empty">Loading…</p>';
-      try {
-        const r = await fetch(`${base}/operator/actions/${transferId}`);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
-        const actions = data.actions || [];
-        if (!actions.length) { auditList.innerHTML = '<p class="audit-empty">No actions yet</p>'; return; }
-        auditList.innerHTML = actions.map(a => `
-          <div class="audit-item">
-            <span class="audit-action ${a.action}">${a.action}</span>
-            <span class="audit-meta">${a.operator_id} · ${new Date(a.created_at).toLocaleString()}</span>
-            ${a.note ? `<span style="color:var(--text-muted);font-size:0.77rem">${a.note}</span>` : ''}
-            ${a.contribution_type_override ? `<span style="color:var(--text-muted);font-size:0.77rem">override: ${a.contribution_type_override}</span>` : ''}
-          </div>`).join('');
-      } catch(e) {
-        auditList.innerHTML = `<p class="audit-empty" style="color:var(--fail)">Error: ${e.message}</p>`;
-      }
-    }
-
-    async function doAction(action) {
-      if (!selectedTransfer) return;
-      const base = apiBase();
-      const feedback = $('actionFeedback');
-      const tid = selectedTransfer.id;
-      const override = $('contributionOverride').value;
-      const body = { transfer_id: tid, operator_id: 'operator-1', note: '' };
-      if (action === 'approve' && override) body.contribution_type = override;
-      feedback.className = 'action-feedback';
-      feedback.textContent = 'Processing…';
-      $('approveBtn').disabled = true;
-      $('rejectBtn').disabled = true;
-      try {
-        const r = await fetch(`${base}/operator/${action}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        const j = await r.json();
-        if (r.ok) {
-          feedback.className = 'action-feedback ok';
-          feedback.textContent = `${action === 'approve' ? 'Approved' : 'Rejected'} — state: ${j.state}`;
-          // Remove from queue after action
-          queueItems = queueItems.filter(x => x.id !== tid);
-          selectedTransfer = null;
-          renderQueue();
-          $('detailPlaceholder').style.display = 'flex';
-          $('detailContent').style.display = 'none';
-          // Reload to get fresh data
-          await loadQueue();
-        } else {
-          feedback.className = 'action-feedback err';
-          feedback.textContent = `Error: ${j.error || r.status}`;
-          $('approveBtn').disabled = false;
-          $('rejectBtn').disabled = false;
-        }
-      } catch(e) {
-        feedback.className = 'action-feedback err';
-        feedback.textContent = `Error: ${e.message}`;
-        $('approveBtn').disabled = false;
-        $('rejectBtn').disabled = false;
-      }
-    }
-
-    async function checkAPIStatus() {
-      const base = apiBase();
-      const el = $('apiStatus');
-      try {
-        const r = await fetch(`${base}/health`);
-        el.textContent = r.ok ? 'OK' : 'Err';
-        el.className = r.ok ? 'status ok' : 'status err';
-      } catch(e) {
-        el.textContent = '—';
-        el.className = 'status err';
-      }
-    }
-
-    function startPolling() {
-      stopPolling();
-      pollTimer = setInterval(() => loadQueue(true), POLL_INTERVAL_MS);
-    }
-    function stopPolling() {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-    }
-
-    function init() {
-      $('apiBase').value = location.origin.includes('localhost') ? 'http://localhost:8080' : (location.origin || '');
-      $('apiBase').onchange = async () => { await checkAPIStatus(); await loadQueue(); };
-      $('refreshBtn').onclick = () => loadQueue();
-      $('approveBtn').onclick = () => doAction('approve');
-      $('rejectBtn').onclick = () => doAction('reject');
-      loadQueue();
-      startPolling();
-
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopPolling();
-        else { loadQueue(true); startPolling(); }
-      });
-    }
-    init();
-  </script>
+// ── Init ──
+loadQueue();
+setInterval(() => loadQueue(), 10000);
+</script>
 </body>
 </html>
