@@ -69,6 +69,7 @@ func main() {
 	// Register deposit routes
 	depositHandler := api.NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, database)
 	mux.HandleFunc("POST /deposits", api.WithIdempotency(database, depositHandler.Create))
+	mux.HandleFunc("GET /deposits", depositHandler.List)
 	mux.HandleFunc("GET /deposits/{id}", depositHandler.Get)
 
 	// Operator routes

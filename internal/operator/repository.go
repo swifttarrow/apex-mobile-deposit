@@ -30,8 +30,9 @@ func NewRepository(db *sql.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// ListFlaggedTransfers returns all transfers in the Analyzing state, with optional filters.
-func (r *Repository) ListFlaggedTransfers(dateFilter, accountFilter string, amountMin, amountMax float64) ([]*transfer.Transfer, error) {
+// ListFlaggedTransfers returns transfers in the Analyzing state, with optional filters and pagination.
+// limit=0 means no limit.
+func (r *Repository) ListFlaggedTransfers(dateFilter, accountFilter string, amountMin, amountMax float64, limit, offset int) ([]*transfer.Transfer, error) {
 	query := `
 		SELECT id, account_id, amount, state,
 		       COALESCE(vendor_response,''), COALESCE(front_image_path,''), COALESCE(back_image_path,''),
@@ -59,6 +60,9 @@ func (r *Repository) ListFlaggedTransfers(dateFilter, accountFilter string, amou
 		args = append(args, amountMax)
 	}
 	query += " ORDER BY created_at ASC"
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+	}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {

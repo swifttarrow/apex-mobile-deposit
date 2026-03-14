@@ -57,8 +57,10 @@ func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	if amountMaxStr != "" {
 		amountMax, _ = strconv.ParseFloat(amountMaxStr, 64)
 	}
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
 
-	transfers, err := h.operatorRepo.ListFlaggedTransfers(dateFilter, accountFilter, amountMin, amountMax)
+	transfers, err := h.operatorRepo.ListFlaggedTransfers(dateFilter, accountFilter, amountMin, amountMax, limit, offset)
 	if err != nil {
 		log.Printf("operator queue: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to list flagged transfers")

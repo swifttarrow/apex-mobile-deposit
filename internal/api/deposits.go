@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
@@ -308,6 +309,33 @@ func (h *DepositHandler) rejectTransfer(t *transfer.Transfer, reason string) {
 	if err := h.transferRepo.UpdateTransferState(t); err != nil {
 		log.Printf("update rejected transfer %s: %v", t.ID, err)
 	}
+}
+
+// List handles GET /deposits?account_id=...&limit=...&offset=...&status=...
+func (h *DepositHandler) List(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	accountID := q.Get("account_id")
+	if accountID == "" {
+		writeError(w, http.StatusBadRequest, "account_id is required")
+		return
+	}
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	status := transfer.State(q.Get("status"))
+
+	transfers, err := h.transferRepo.ListTransfersByAccount(accountID, limit, offset, status)
+	if err != nil {
+		log.Printf("deposit list: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to list deposits")
+		return
+	}
+	if transfers == nil {
+		transfers = []*transfer.Transfer{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"transfers": transfers,
+		"count":     len(transfers),
+	})
 }
 
 // Get handles GET /deposits/:id.

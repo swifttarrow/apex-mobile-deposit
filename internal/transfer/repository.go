@@ -151,6 +151,52 @@ func (r *Repository) ListTransfers(state State) ([]*Transfer, error) {
 	return transfers, rows.Err()
 }
 
+// ListTransfersByAccount returns transfers for an account, ordered by created_at DESC, with pagination.
+// If status is non-empty, filters by that state. limit=0 means no limit.
+func (r *Repository) ListTransfersByAccount(accountID string, limit, offset int, status State) ([]*Transfer, error) {
+	query := `
+		SELECT id, account_id, amount, state,
+		       COALESCE(vendor_response,''), COALESCE(front_image_path,''), COALESCE(back_image_path,''),
+		       COALESCE(micr_data,''), COALESCE(ocr_amount,0), COALESCE(entered_amount,0),
+		       COALESCE(transaction_id,''), COALESCE(contribution_type,''),
+		       COALESCE(settlement_batch_id,''), COALESCE(settlement_ack_at,''),
+		       created_at, updated_at
+		FROM transfers WHERE account_id = ?`
+	args := []interface{}{accountID}
+	if status != "" {
+		query += " AND state = ?"
+		args = append(args, string(status))
+	}
+	query += " ORDER BY created_at DESC"
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+	}
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list transfers by account: %w", err)
+	}
+	defer rows.Close()
+
+	var transfers []*Transfer
+	for rows.Next() {
+		t := &Transfer{}
+		err := rows.Scan(
+			&t.ID, &t.AccountID, &t.Amount, &t.State,
+			&t.VendorResponse, &t.FrontImagePath, &t.BackImagePath,
+			&t.MICRData, &t.OCRAmount, &t.EnteredAmount,
+			&t.TransactionID, &t.ContributionType,
+			&t.SettlementBatchID, &t.SettlementAckAt,
+			&t.CreatedAt, &t.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan transfer: %w", err)
+		}
+		transfers = append(transfers, t)
+	}
+	return transfers, rows.Err()
+}
+
 // GetTransferByTransactionID looks up a transfer by its vendor transaction_id.
 func (r *Repository) GetTransferByTransactionID(txnID string) (*Transfer, error) {
 	row := r.db.QueryRow(`
