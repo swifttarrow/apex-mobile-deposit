@@ -19,6 +19,7 @@ type DepositRequest struct {
 	Amount      float64 `json:"amount"`
 	FrontImage  string  `json:"front_image"`
 	BackImage   string  `json:"back_image"`
+	Scenario    string  `json:"scenario,omitempty"` // Overrides vendor stub scenario (e.g. clean_pass, amount_mismatch)
 }
 
 // DepositHandler handles deposit-related HTTP requests.
@@ -99,6 +100,9 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Step 3: Call vendor stub
 	scenarioOverride := r.Header.Get("X-Test-Scenario")
+	if scenarioOverride == "" && req.Scenario != "" {
+		scenarioOverride = req.Scenario
+	}
 	vendorReq := &vendor.VendorRequest{
 		AccountID:  req.AccountID,
 		Amount:     req.Amount,
