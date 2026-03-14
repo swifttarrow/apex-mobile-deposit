@@ -463,7 +463,7 @@ Several APIs or schema changes are needed before the UIs can function as designe
 ## References
 
 - Scenario Showcase: `cmd/server/web/scenarios/index.html`
-- MVP Plan: `thoughts/plans/2025-03-10-checkstream-mvp.md`
-- Architecture: `docs/architecture.md`
-- User Stories: `docs/user-stories.md`
+- MVP Plan: [2025-03-10-checkstream-mvp.md](./2025-03-10-checkstream-mvp.md)
+- Architecture: [docs/architecture.md](../architecture.md)
+- User Stories: [docs/user-stories.md](../user-stories.md)
 - Pencil designs: `pencil-new.pen` (Mobile Deposit Capture, Status, History; Operator Review Queue, Deposit Detail)

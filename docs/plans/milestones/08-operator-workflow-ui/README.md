@@ -4,7 +4,7 @@
 
 Separate `/operator` page for manual review, approval/rejection, and audit of flagged deposits. Shared navigation between `/scenarios` and `/operator` so users can move between pages.
 
-**Source:** [Gaps Plan §12: Operator Workflow UI](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md#12-operator-workflow-ui-new-facet)
+**Source:** [Gaps Plan §12: Operator Workflow UI](../../2025-03-10-checkstream-full-deliverable.md#12-operator-workflow-ui-new-facet)
 
 ## Dependencies
 

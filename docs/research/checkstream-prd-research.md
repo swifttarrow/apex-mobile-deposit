@@ -428,4 +428,4 @@ Research is complete. Each decision above includes:
 - **Decision** — Concrete, actionable choice.
 - **Rationale** — Constraints, tradeoffs, optimization target.
 
-Ready for handoff to Planning. Next step: Create implementation plan in `thoughts/plans/`.
+Ready for handoff to Planning. Next step: Create implementation plan in `docs/plans/`.

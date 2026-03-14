@@ -4,7 +4,7 @@
 
 Refactor the operator UI to match Pencil designs: sidebar nav, stats row, filter tabs, table layout with pagination, and a dedicated Deposit Detail view with breadcrumb and two-column layout.
 
-**Source:** [Stretch Goals Plan § Phase 3.3](../../../thoughts/plans/2025-03-12-stretch-goals.md#phase-33-operator-ui-implementation)
+**Source:** [Stretch Goals Plan § Phase 3.3](../../2025-03-12-stretch-goals.md#phase-33-operator-ui-implementation)
 
 ## Dependencies
 

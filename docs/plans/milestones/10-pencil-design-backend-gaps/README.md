@@ -4,7 +4,7 @@
 
 Add backend APIs required to power the Pencil design UIs: Deposit History (for mobile) and Operator Queue pagination (for operator table).
 
-**Source:** [Stretch Goals Plan § Phase 3.1](../../../thoughts/plans/2025-03-12-stretch-goals.md#phase-31-backend-gaps-power-uis)
+**Source:** [Stretch Goals Plan § Phase 3.1](../../2025-03-12-stretch-goals.md#phase-31-backend-gaps-power-uis)
 
 ## Dependencies
 

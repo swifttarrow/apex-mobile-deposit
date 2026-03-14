@@ -10,7 +10,7 @@ Build a monolithic Go mobile check deposit pipeline (Checkstream) with SQLite: d
 
 - **Codebase:** Greenfield. No Go code, no existing services.
 - **Docs:** PRD (`docs/prd.md`), requirements (`docs/requirements.md`), terminology (`docs/terminology.md`).
-- **Research:** Pre-Search complete (`thoughts/research/checkstream-prd-research.md`). Locked: Go, SQLite, in-process stub, scenarios.json, Moov X9 ICL.
+- **Research:** Pre-Search complete (`docs/research/checkstream-prd-research.md`). Locked: Go, SQLite, in-process stub, scenarios.json, Moov X9 ICL.
 - **Constraints:** MVP gate in 24 hrs; optimize for speed; monolithic architecture.
 
 ---
@@ -391,5 +391,5 @@ Minimal UI or CLI for demo; tests covering all 10 scenarios; `make dev`; README;
 
 - PRD: `docs/prd.md`
 - Requirements: `docs/requirements.md`
-- Research: `thoughts/research/checkstream-prd-research.md`
+- Research: `docs/research/checkstream-prd-research.md`
 - Terminology: `docs/terminology.md`

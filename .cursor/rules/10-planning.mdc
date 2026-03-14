@@ -1,7 +1,7 @@
 ---
 description: Planning phase—create detailed implementation plans
 alwaysApply: false
-globs: thoughts/plans/**/*
+globs: docs/plans/**/*.md
 ---
 
 # Planning Phase
@@ -17,7 +17,7 @@ When creating implementation plans:
 
 ## Plan Structure
 
-Plans go in `thoughts/plans/` as `YYYY-MM-DD-description.md`
+Plans go in `docs/plans/` as `YYYY-MM-DD-description.md`
 
 Each phase must include:
 - **Automated Verification**: Commands to run (`make test`, `npm run lint`, etc.)

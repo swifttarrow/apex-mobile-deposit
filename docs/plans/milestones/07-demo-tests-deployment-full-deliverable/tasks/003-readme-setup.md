@@ -9,7 +9,7 @@ Write README with setup, architecture overview, test account conventions, how to
 - [ ] README.md — setup instructions, one-command (`make dev` or `docker compose up`)
 - [ ] Test account conventions (ACC-IQA-BLUR, etc.)
 - [ ] How to run demo
-- [ ] Reference to Pre-Search: `thoughts/research/checkstream-prd-research.md`
+- [ ] Reference to Pre-Search: `docs/research/checkstream-prd-research.md`
 - [ ] .env.example with required env vars
 - [ ] Performance targets documented (Vendor <1s, ledger <5s, etc.)
 

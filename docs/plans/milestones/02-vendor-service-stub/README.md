@@ -4,7 +4,7 @@
 
 Config-driven stub returning 7+ differentiated responses. Selection via `scenarios.json` (account prefix) and `X-Test-Scenario` header. Include MICR confidence scores for operator queue (full deliverable).
 
-**Source:** [MVP Plan Phase 2](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-2-vendor-service-stub) | [Gaps: MICR confidence](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md#2-operator-workflow-gaps)
+**Source:** [MVP Plan Phase 2](../../2025-03-10-checkstream-mvp.md#phase-2-vendor-service-stub) | [Gaps: MICR confidence](../../2025-03-10-checkstream-full-deliverable.md#2-operator-workflow-gaps)
 
 ## Dependencies
 

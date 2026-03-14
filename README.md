@@ -2,7 +2,7 @@
 
 A Go backend service implementing mobile check deposit with state machine-based transfer lifecycle, vendor check analysis, operator review workflow, and settlement processing.
 
-**Pre-Search:** Architecture research and constraints are documented in [thoughts/research/checkstream-prd-research.md](thoughts/research/checkstream-prd-research.md).
+**Pre-Search:** Architecture research and constraints are documented in [docs/research/checkstream-prd-research.md](docs/research/checkstream-prd-research.md).
 
 ## Architecture Overview
 

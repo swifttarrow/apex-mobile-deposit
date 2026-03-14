@@ -4,7 +4,7 @@
 
 Extract design tokens from the Pencil design system and apply them consistently across mobile and operator UIs. Use Geist/Inter fonts per design.
 
-**Source:** [Stretch Goals Plan § Phase 3.4](../../../thoughts/plans/2025-03-12-stretch-goals.md#phase-34-design-tokens--styling)
+**Source:** [Stretch Goals Plan § Phase 3.4](../../2025-03-12-stretch-goals.md#phase-34-design-tokens--styling)
 
 ## Dependencies
 

@@ -4,7 +4,7 @@
 
 REST API: `POST /deposits` accepts images, amount, account. Orchestrates Vendor stub → Funding → ledger + state updates. Idempotency via `X-Idempotency-Key` (optional for MVP).
 
-**Source:** [MVP Plan Phase 4](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-4-deposit-submission-flow)
+**Source:** [MVP Plan Phase 4](../../2025-03-10-checkstream-mvp.md#phase-4-deposit-submission-flow)
 
 ## Dependencies
 

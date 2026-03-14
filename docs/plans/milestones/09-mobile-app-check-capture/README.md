@@ -4,7 +4,7 @@
 
 Lightweight mobile app (PWA or Expo) that simulates taking pictures of checks (front and back). User-supplied mock check images replace "captured" photos; app sends mock payload to the Go deposit API.
 
-**Source:** [Gaps Plan §13: Mobile App — Check Capture Simulation](../../../thoughts/plans/2025-03-10-checkstream-full-deliverable.md#13-mobile-app--check-capture-simulation-new-facet)
+**Source:** [Gaps Plan §13: Mobile App — Check Capture Simulation](../../2025-03-10-checkstream-full-deliverable.md#13-mobile-app--check-capture-simulation-new-facet)
 
 ## Dependencies
 

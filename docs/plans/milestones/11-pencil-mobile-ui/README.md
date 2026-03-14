@@ -4,7 +4,7 @@
 
 Refactor the mobile app to match Pencil designs: single-screen Deposit Capture, redesigned Deposit Status with stepper, and new Deposit History screen. Includes tab bar navigation across Capture, Status, and History.
 
-**Source:** [Stretch Goals Plan § Phase 3.2](../../../thoughts/plans/2025-03-12-stretch-goals.md#phase-32-mobile-ui-implementation)
+**Source:** [Stretch Goals Plan § Phase 3.2](../../2025-03-12-stretch-goals.md#phase-32-mobile-ui-implementation)
 
 ## Dependencies
 

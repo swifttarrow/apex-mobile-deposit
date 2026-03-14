@@ -4,7 +4,7 @@
 
 Initialize Go module, directory layout, SQLite schema, and transfer state machine with valid transitions. Foundation for all subsequent phases.
 
-**Source:** [MVP Plan Phase 1](../../../thoughts/plans/2025-03-10-checkstream-mvp.md#phase-1-project-setup--transfer-state-machine)
+**Source:** [MVP Plan Phase 1](../../2025-03-10-checkstream-mvp.md#phase-1-project-setup--transfer-state-machine)
 
 ## Dependencies
 

@@ -1,7 +1,7 @@
 ---
 description: Validation phase—verify implementation against plan
 alwaysApply: false
-globs: thoughts/plans/**/*,thoughts/handoffs/**/*
+globs: docs/plans/**/*,docs/handoffs/**/*
 ---
 
 # Validation Phase

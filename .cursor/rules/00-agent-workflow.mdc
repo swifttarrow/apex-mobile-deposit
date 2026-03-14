@@ -17,15 +17,15 @@ This project uses a **Research → Plan → Implement → Validate** workflow fo
 ## Key Principles
 
 - **Context management**: Keep context utilization in 40–60% range; compact between phases
-- **Frequent intentional compaction**: Distill findings into structured artifacts in `thoughts/`
+- **Frequent intentional compaction**: Distill findings into structured artifacts in `docs/`
 - **Human leverage**: Review research and plans before implementation—highest leverage points
 - **Specs as source of truth**: Plans and research documents guide implementation
 
 ## Artifact Locations
 
-- Research: `thoughts/research/`
-- Plans: `thoughts/plans/`
-- Handoffs: `thoughts/handoffs/`
+- Research: `docs/research/`
+- Plans: `docs/plans/`
+- Handoffs: `docs/handoffs/`
 
 ## When to Use
 
