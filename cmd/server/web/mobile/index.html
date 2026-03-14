@@ -264,28 +264,6 @@
     .info-row .lbl { color: var(--muted-foreground); }
     .info-row .val { font-weight: 600; }
 
-    /* Stepper */
-    .stepper { display: flex; flex-direction: column; gap: 0; }
-    .step-item { display: flex; align-items: flex-start; gap: 14px; }
-    .step-left { display: flex; flex-direction: column; align-items: center; }
-    .step-circle {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      border: 2px solid var(--border);
-      background: var(--card);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      font-size: 11px; font-weight: 700;
-    }
-    .step-circle.done { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
-    .step-circle.active { border-color: var(--primary); color: var(--primary); }
-    .step-line { width: 2px; flex: 1; min-height: 20px; background: var(--border); margin: 2px 0; }
-    .step-line.done { background: var(--primary); }
-    .step-label-wrap { padding: 4px 0 20px; }
-    .step-name { font-size: 14px; font-weight: 600; }
-    .step-name.active { color: var(--primary); }
-    .step-name.muted { color: var(--muted-foreground); }
-
     /* ── History Screen ── */
     .history-header { padding: 16px 20px 8px; }
     .history-title-row {
@@ -330,6 +308,58 @@
     .deposit-date { font-size: 12px; color: var(--muted-foreground); }
     .empty-state { text-align: center; padding: 48px 20px; color: var(--muted-foreground); font-size: 14px; }
     .loading-state { text-align: center; padding: 48px 20px; color: var(--muted-foreground); font-size: 14px; }
+
+    /* ── Profile Screen ── */
+    .profile-content { padding: 20px; }
+    .profile-avatar-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .profile-avatar {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: var(--secondary);
+      border: 2px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .profile-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .profile-avatar .avatar-placeholder {
+      width: 44px;
+      height: 44px;
+      stroke: var(--muted-foreground);
+    }
+    .avatar-upload-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+    }
+    .profile-field { margin-bottom: 20px; }
+    .profile-input {
+      width: 100%;
+      height: 48px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-m);
+      padding: 0 16px;
+      font-size: 16px;
+      font-family: var(--font-secondary);
+      color: var(--foreground);
+      margin-top: 8px;
+    }
+    .profile-input::placeholder { color: var(--muted-foreground); }
   </style>
 </head>
 <body>
@@ -425,9 +455,35 @@
         <div class="info-row"><span class="lbl">Submitted</span><span class="val" id="statusDate">—</span></div>
       </div>
 
-      <div class="info-card">
-        <div class="info-card-title">Transfer Progress</div>
-        <div class="stepper" id="stepper"></div>
+    </div>
+
+    <!-- ── PROFILE SCREEN ── -->
+    <div class="screen" id="screenProfile">
+      <div class="page-header">
+        <div class="page-title">Profile</div>
+      </div>
+      <div class="profile-content">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" id="profileAvatar">
+            <img id="profileAvatarImg" src="" alt="" style="display:none">
+            <svg class="avatar-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <label class="avatar-upload-label">
+            <input type="file" id="avatarInput" accept="image/*" hidden>
+            Change Photo
+          </label>
+        </div>
+        <div class="profile-field">
+          <label class="field-label">Name</label>
+          <input type="text" class="profile-input" id="profileName" placeholder="Your name" value="Alex Morgan">
+        </div>
+        <div class="profile-field">
+          <label class="field-label">Email</label>
+          <input type="email" class="profile-input" id="profileEmail" placeholder="your@email.com" value="alex.morgan@example.com">
+        </div>
       </div>
     </div>
 
@@ -463,17 +519,11 @@
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         <polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
-      HOME
+      DEPOSIT
     </button>
     <button class="tab-item" id="tabDeposits">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
-      </svg>
-      DEPOSITS
-    </button>
-    <button class="tab-item" id="tabActivity">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
       ACTIVITY
     </button>
@@ -497,7 +547,6 @@ let state = {
   frontCaptured: false,
   backCaptured: false,
   currentTransfer: null,
-  pollTimer: null,
   activeTab: 'capture',
   apiBase: '',
   historyDeposits: [],
@@ -506,11 +555,6 @@ let state = {
 const CHECK_IMAGES = {
   1: 'clean-check.png', 2: 'blurry-check.png', 3: 'glare-check.png',
   4: 'micr-check.png',  5: 'mismatch-check.png', 6: 'clean-check.png',
-};
-const STEPS = ['Requested','Validating','Analyzing','Approved','FundsPosted','Completed'];
-const STEP_LABELS = {
-  Requested:'Requested', Validating:'Validating', Analyzing:'Analyzing',
-  Approved:'Approved', FundsPosted:'Funds Posted', Completed:'Completed',
 };
 
 function apiBase() {
@@ -524,7 +568,7 @@ function checkImgUrl(num, side) {
 
 // ── Tabs ──
 function showTab(tab) {
-  ['capture','deposits','activity','profile'].forEach(t => {
+  ['capture','deposits','profile'].forEach(t => {
     $('tab' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.remove('active');
   });
   state.activeTab = tab;
@@ -536,19 +580,14 @@ function showTab(tab) {
     $('tabDeposits').classList.add('active');
     showScreen('screenHistory');
     loadHistory();
-  } else if (tab === 'activity') {
-    $('tabActivity').classList.add('active');
-    showScreen('screenHistory'); // reuse history as activity for now
-    loadHistory();
   } else if (tab === 'profile') {
     $('tabProfile').classList.add('active');
-    showScreen('screenCapture'); // no profile screen, stay on capture
+    showScreen('screenProfile');
   }
 }
 
 $('tabCapture').onclick  = () => showTab('capture');
 $('tabDeposits').onclick = () => showTab('deposits');
-$('tabActivity').onclick = () => showTab('activity');
 $('tabProfile').onclick  = () => showTab('profile');
 
 function showScreen(id) {
@@ -636,7 +675,6 @@ $('submitBtn').onclick = async () => {
 
 // ── Status Screen ──
 function showStatusScreen(transfer, kind, errMsg) {
-  stopPolling();
   // Banner
   const banner = $('statusBanner');
   banner.className = 'status-banner ' + kind;
@@ -656,7 +694,6 @@ function showStatusScreen(transfer, kind, errMsg) {
     $('statusAccount').textContent = '—';
     $('statusCheck').textContent = '—';
     $('statusDate').textContent = '—';
-    renderStepper(null);
     showScreen('screenStatus');
     $('tabCapture').classList.remove('active');
     $('tabDeposits').classList.add('active');
@@ -669,8 +706,6 @@ function showStatusScreen(transfer, kind, errMsg) {
     $('statusAccount').textContent = transfer.account_id || '—';
     $('statusCheck').textContent = state.selectedCheck ? `Check #${String(state.selectedCheck).padStart(4,'0')}` : '—';
     $('statusDate').textContent = transfer.created_at ? new Date(transfer.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
-    renderStepper(transfer.state);
-    if (!isFinalState(transfer.state)) startPolling(transfer.id);
   }
 
   showScreen('screenStatus');
@@ -679,66 +714,7 @@ function showStatusScreen(transfer, kind, errMsg) {
   state.activeTab = 'deposits';
 }
 
-function isFinalState(s) {
-  return s === 'Completed' || s === 'Rejected' || s === 'Returned';
-}
-
-function renderStepper(currentState) {
-  const el = $('stepper');
-  const doneIdx = currentState ? STEPS.indexOf(currentState) : -1;
-  el.innerHTML = STEPS.map((step, i) => {
-    const done   = i < doneIdx;
-    const active = i === doneIdx;
-    const last   = i === STEPS.length - 1;
-    const circleClass = done ? 'done' : active ? 'active' : '';
-    const labelClass  = done ? '' : active ? 'active' : 'muted';
-    const lineClass   = done ? 'done' : '';
-    return `<div class="step-item">
-      <div class="step-left">
-        <div class="step-circle ${circleClass}">${done ? '✓' : i+1}</div>
-        ${!last ? `<div class="step-line ${lineClass}"></div>` : ''}
-      </div>
-      <div class="step-label-wrap">
-        <div class="step-name ${labelClass}">${STEP_LABELS[step] || step}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-$('statusBackBtn').onclick = () => {
-  stopPolling();
-  showTab('capture');
-};
-
-function startPolling(transferId) {
-  state.pollTimer = setInterval(async () => {
-    try {
-      const r = await fetch(`${apiBase()}/deposits/${transferId}`);
-      if (!r.ok) return;
-      const t = await r.json();
-      renderStepper(t.state);
-      if (isFinalState(t.state)) {
-        stopPolling();
-        // Update banner
-        if (t.state === 'Completed') {
-          $('statusBannerTitle').textContent = 'Deposit Completed';
-          $('statusBannerSub').textContent = 'Funds have been posted';
-        } else if (t.state === 'Rejected') {
-          $('statusBanner').className = 'status-banner error';
-          $('statusBannerTitle').textContent = 'Deposit Rejected';
-          $('statusBannerSub').textContent = 'See details for reason';
-        } else if (t.state === 'Returned') {
-          $('statusBanner').className = 'status-banner warning';
-          $('statusBannerTitle').textContent = 'Deposit Returned';
-          $('statusBannerSub').textContent = 'Check was returned';
-        }
-      }
-    } catch(e) {}
-  }, 3000);
-}
-function stopPolling() {
-  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
-}
+$('statusBackBtn').onclick = () => showTab('capture');
 
 // ── History Screen ──
 async function loadHistory() {
@@ -794,8 +770,59 @@ $('historySearch').oninput = (e) => {
   renderHistory(filtered);
 };
 
+// ── Profile Screen ──
+const PROFILE_KEY = 'checkstream_profile';
+function loadProfile() {
+  try {
+    const s = localStorage.getItem(PROFILE_KEY);
+    const img = $('profileAvatarImg');
+    const ph = $('profileAvatar')?.querySelector('.avatar-placeholder');
+    if (s) {
+      const p = JSON.parse(s);
+      $('profileName').value = p.name || '';
+      $('profileEmail').value = p.email || '';
+      if (p.avatar) {
+        img.src = p.avatar;
+        img.style.display = 'block';
+        if (ph) ph.style.display = 'none';
+      } else {
+        img.src = '';
+        img.style.display = 'none';
+        if (ph) ph.style.display = '';
+      }
+    } else if (ph) {
+      ph.style.display = '';
+    }
+  } catch(e) {}
+}
+function saveProfile() {
+  const p = {
+    name: $('profileName').value,
+    email: $('profileEmail').value,
+    avatar: $('profileAvatarImg').src || ''
+  };
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+}
+$('profileName').oninput = saveProfile;
+$('profileEmail').oninput = saveProfile;
+$('avatarInput').onchange = (e) => {
+  const file = e.target.files?.[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  const r = new FileReader();
+  r.onload = () => {
+    $('profileAvatarImg').src = r.result;
+    $('profileAvatarImg').style.display = 'block';
+    $('profileAvatarImg').alt = 'Profile photo';
+    const ph = $('profileAvatar').querySelector('.avatar-placeholder');
+    if (ph) ph.style.display = 'none';
+    saveProfile();
+  };
+  r.readAsDataURL(file);
+};
+
 // ── Init ──
 state.apiBase = location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
+loadProfile();
 </script>
 </body>
 </html>
