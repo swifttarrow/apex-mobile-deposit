@@ -1,17 +1,16 @@
 # Mock Check Assets
 
-Place 6 mock check images (front + back) here using the naming convention:
+The mobile app uses these files (already present):
 
-```
-check-01-front.png   check-01-back.png
-check-02-front.png   check-02-back.png
-check-03-front.png   check-03-back.png
-check-04-front.png   check-04-back.png
-check-05-front.png   check-05-back.png
-check-06-front.png   check-06-back.png
-```
+| Check | Scenario        | Front             | Back             |
+|-------|-----------------|-------------------|------------------|
+| 1     | Clean pass      | clean-check.png   | back-of-check.png |
+| 2     | IQA Blur        | blurry-check.png  | back-of-check.png |
+| 3     | IQA Glare       | glare-check.png   | back-of-check.png |
+| 4     | MICR fail       | micr-check.png    | back-of-check.png |
+| 5     | Amount mismatch | mismatch-check.png| back-of-check.png |
+| 6     | Duplicate       | clean-check.png   | back-of-check.png |
 
-**Formats:** PNG or JPEG (`*.png` / `*.jpg`)
+**Formats:** PNG or JPEG
 
-The mobile app references images as `/mobile/checks/check-{NN}-{front|back}.png`.
-Supply your own check images in this directory and they will be served automatically.
+Each check selection in the carousel triggers the corresponding vendor stub scenario.

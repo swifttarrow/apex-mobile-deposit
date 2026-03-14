@@ -43,10 +43,22 @@
     .settings-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
     .settings-group input { width: 100%; padding: 0.6rem 0.8rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem; }
     .settings-group select { width: 100%; padding: 0.6rem 0.8rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem; }
-    .check-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.5rem; }
-    .check-option { background: var(--bg-card); border: 2px solid var(--border); border-radius: 8px; padding: 0.6rem; text-align: center; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: border-color 0.15s; }
-    .check-option:hover { border-color: var(--accent); }
-    .check-option.selected { border-color: var(--accent); background: rgba(88,166,255,0.1); color: var(--accent); }
+    /* Check carousel */
+    .check-carousel { display: flex; gap: 0.75rem; overflow-x: auto; padding: 0.5rem 0; margin-top: 0.5rem; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+    .check-carousel::-webkit-scrollbar { height: 4px; }
+    .check-carousel::-webkit-scrollbar-track { background: var(--border); border-radius: 2px; }
+    .check-carousel::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+    .check-card {
+      flex: 0 0 140px; scroll-snap-align: start;
+      background: var(--bg-card); border: 2px solid var(--border); border-radius: 10px;
+      padding: 0.75rem; text-align: center; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .check-card:hover { border-color: var(--accent); }
+    .check-card.selected { border-color: var(--accent); background: rgba(88,166,255,0.1); }
+    .check-card-num { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+    .check-card-label { font-size: 0.9rem; font-weight: 600; }
+    .check-card-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.3rem; }
 
     /* Capture screen */
     .capture-step { margin-bottom: 1.5rem; }
@@ -147,14 +159,39 @@
         <input type="number" id="amount" value="150.00" step="0.01" min="0.01">
       </div>
       <div class="settings-group">
-        <label>Select Mock Check (1–6)</label>
-        <div class="check-selector" id="checkSelector">
-          <div class="check-option selected" data-check="1">Check 1</div>
-          <div class="check-option" data-check="2">Check 2</div>
-          <div class="check-option" data-check="3">Check 3</div>
-          <div class="check-option" data-check="4">Check 4</div>
-          <div class="check-option" data-check="5">Check 5</div>
-          <div class="check-option" data-check="6">Check 6</div>
+        <label>Select Check Scenario</label>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">Each check triggers a different validation path</p>
+        <div class="check-carousel" id="checkCarousel">
+          <div class="check-card selected" data-check="1">
+            <div class="check-card-num">Check 1</div>
+            <div class="check-card-label">Clean pass</div>
+            <div class="check-card-hint">Happy path</div>
+          </div>
+          <div class="check-card" data-check="2">
+            <div class="check-card-num">Check 2</div>
+            <div class="check-card-label">IQA Blur</div>
+            <div class="check-card-hint">Image too blurry</div>
+          </div>
+          <div class="check-card" data-check="3">
+            <div class="check-card-num">Check 3</div>
+            <div class="check-card-label">IQA Glare</div>
+            <div class="check-card-hint">Glare detected</div>
+          </div>
+          <div class="check-card" data-check="4">
+            <div class="check-card-num">Check 4</div>
+            <div class="check-card-label">MICR fail</div>
+            <div class="check-card-hint">Flagged for review</div>
+          </div>
+          <div class="check-card" data-check="5">
+            <div class="check-card-num">Check 5</div>
+            <div class="check-card-label">Amount mismatch</div>
+            <div class="check-card-hint">OCR vs entered</div>
+          </div>
+          <div class="check-card" data-check="6">
+            <div class="check-card-num">Check 6</div>
+            <div class="check-card-label">Duplicate</div>
+            <div class="check-card-hint">Rejected</div>
+          </div>
         </div>
       </div>
       <button class="btn btn-primary" id="startCaptureBtn">Start Check Capture</button>
@@ -259,13 +296,41 @@
     let frontCaptured = false;
     let backCaptured = false;
 
+    // Check index -> vendor stub scenario (drives validation path)
+    const CHECK_SCENARIOS = {
+      1: 'clean_pass',
+      2: 'iqafail_blur',
+      3: 'iqafail_glare',
+      4: 'micr_fail',
+      5: 'amount_mismatch',
+      6: 'duplicate'
+    };
+
+    const SCENARIO_LABELS = {
+      clean_pass: 'Clean pass',
+      iqafail_blur: 'IQA Blur',
+      iqafail_glare: 'IQA Glare',
+      micr_fail: 'MICR fail',
+      amount_mismatch: 'Amount mismatch',
+      duplicate: 'Duplicate'
+    };
+
     function apiBase() {
       return ($('apiBase').value || '').trim() || (location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin);
     }
 
+    const CHECK_IMAGES = {
+      1: { front: 'clean-check.png', back: 'back-of-check.png' },
+      2: { front: 'blurry-check.png', back: 'back-of-check.png' },
+      3: { front: 'glare-check.png', back: 'back-of-check.png' },
+      4: { front: 'micr-check.png', back: 'back-of-check.png' },
+      5: { front: 'mismatch-check.png', back: 'back-of-check.png' },
+      6: { front: 'clean-check.png', back: 'back-of-check.png' }
+    };
+
     function checkImgUrl(num, side) {
-      const n = String(num).padStart(2, '0');
-      return `/mobile/checks/check-${n}-${side}.png`;
+      const files = CHECK_IMAGES[num] || CHECK_IMAGES[1];
+      return `/mobile/checks/${files[side]}`;
     }
 
     function showScreen(id) {
@@ -273,12 +338,12 @@
       $(id).classList.add('active');
     }
 
-    // Check selector
-    document.querySelectorAll('.check-option').forEach(opt => {
-      opt.onclick = () => {
-        document.querySelectorAll('.check-option').forEach(o => o.classList.remove('selected'));
-        opt.classList.add('selected');
-        selectedCheck = parseInt(opt.dataset.check, 10);
+    // Check carousel selector
+    document.querySelectorAll('.check-card').forEach(card => {
+      card.onclick = () => {
+        document.querySelectorAll('.check-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedCheck = parseInt(card.dataset.check, 10);
       };
     });
 
@@ -324,7 +389,7 @@
       $('reviewBackImg').src = checkImgUrl(selectedCheck, 'back');
       $('reviewAccount').textContent = $('accountId').value || 'ACC-001';
       $('reviewAmount').textContent = '$' + parseFloat($('amount').value || 0).toFixed(2);
-      $('reviewCheck').textContent = `Mock Check #${selectedCheck}`;
+      $('reviewCheck').textContent = `Check ${selectedCheck}: ${SCENARIO_LABELS[CHECK_SCENARIOS[selectedCheck]] || '—'}`;
       showScreen('screenReview');
     };
     $('backBackBtn').onclick = () => showScreen('screenFront');
@@ -355,22 +420,29 @@
           backBlob = new Blob(['mock-back'], { type: 'image/png' });
         }
 
+        const scenario = CHECK_SCENARIOS[selectedCheck] || 'clean_pass';
+
         const form = new FormData();
         form.append('front_image', frontBlob, `check-${String(selectedCheck).padStart(2,'0')}-front.png`);
         form.append('back_image', backBlob, `check-${String(selectedCheck).padStart(2,'0')}-back.png`);
         form.append('account_id', accountId);
         form.append('amount', String(amount));
         form.append('source', 'mobile');
+        form.append('scenario', scenario);
 
         // Try multipart first; fall back to JSON if server doesn't accept multipart
-        let r = await fetch(`${base}/deposits`, { method: 'POST', body: form });
+        let r = await fetch(`${base}/deposits`, {
+          method: 'POST',
+          headers: { 'X-Test-Scenario': scenario },
+          body: form
+        });
 
         // Fallback to JSON if multipart not supported
         if (r.status === 415 || r.status === 400) {
           r = await fetch(`${base}/deposits`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account_id: accountId, amount, front_image: 'mock-front', back_image: 'mock-back', source: 'mobile' })
+            headers: { 'Content-Type': 'application/json', 'X-Test-Scenario': scenario },
+            body: JSON.stringify({ account_id: accountId, amount, front_image: 'mock-front', back_image: 'mock-back', source: 'mobile', scenario })
           });
         }
 
