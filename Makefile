@@ -1,12 +1,16 @@
 CGO_ENABLED=1
 
-.PHONY: dev test build build-web bench
+.PHONY: dev dev-reload test build build-web bench
 
 build-web:
 	cd web && npm install && npm run build
 
 dev:
 	CGO_ENABLED=1 go run ./cmd/server/...
+
+# Hot reload: restarts server when .go, .html, .json files change
+dev-reload:
+	CGO_ENABLED=1 go run github.com/air-verse/air@latest
 
 test:
 	CGO_ENABLED=1 go test ./...
