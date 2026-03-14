@@ -16,8 +16,8 @@
 | 3 | [03-funding-service-ledger](./03-funding-service-ledger/) | Complete |
 | 4 | [04-deposit-submission-flow](./04-deposit-submission-flow/) | Complete |
 | 5 | [05-operator-workflow](./05-operator-workflow/) | Complete |
-| 6 | [06-settlement-return-reversal](./06-settlement-return-reversal/) | Mostly Complete |
-| 7 | [07-demo-tests-deployment-full-deliverable](./07-demo-tests-deployment-full-deliverable/) | Mostly Complete |
+| 6 | [06-settlement-return-reversal](./06-settlement-return-reversal/) | Complete |
+| 7 | [07-demo-tests-deployment-full-deliverable](./07-demo-tests-deployment-full-deliverable/) | Complete |
 | 8 | [08-operator-workflow-ui](./08-operator-workflow-ui/) | Complete |
 | 9 | [09-mobile-app-check-capture](./09-mobile-app-check-capture/) | Complete |
 
@@ -25,10 +25,10 @@
 
 | # | Milestone | Status |
 |---|-----------|--------|
-| 10 | [10-pencil-design-backend-gaps](./10-pencil-design-backend-gaps/) | Pending |
-| 11 | [11-pencil-mobile-ui](./11-pencil-mobile-ui/) | Pending |
-| 12 | [12-pencil-operator-ui](./12-pencil-operator-ui/) | Pending |
-| 13 | [13-pencil-design-tokens](./13-pencil-design-tokens/) | Pending |
+| 10 | [10-pencil-design-backend-gaps](./10-pencil-design-backend-gaps/) | Complete |
+| 11 | [11-pencil-mobile-ui](./11-pencil-mobile-ui/) | Complete |
+| 12 | [12-pencil-operator-ui](./12-pencil-operator-ui/) | Complete |
+| 13 | [13-pencil-design-tokens](./13-pencil-design-tokens/) | Complete |
 
 **Recommended order for Pencil milestones:** 10 → 11, 12, 13 (13 can run in parallel with 11–12)
 

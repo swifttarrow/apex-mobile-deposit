@@ -106,11 +106,11 @@
 ## 9. Submission & Final Deliverable Gaps
 
 
-| Gap                     | PRD/Requirements                                                        | Plan Coverage                               | Action                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Demo Video**          | 3–5 min; happy path, stub scenarios, operator workflow, return handling | Plan: demo script only                      | Add: record demo video as Final deliverable                                                               |
+| Gap                     | PRD/Requirements                                                        | Plan Coverage                               | Action                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Demo Video**          | 3–5 min; happy path, stub scenarios, operator workflow, return handling | Plan: demo script only                      | Add: record demo video as Final deliverable                                                           |
 | **Pre-Search document** | Required; saved AI conversation or distilled output                     | Research exists; not explicitly deliverable | Ensure `docs/research/checkstream-prd-research.md` is referenced in README and included in submission |
-| **Social Post**         | Tag @GauntletAI                                                         | Not in plan                                 | Add to submission checklist                                                                               |
+| **Social Post**         | Tag @GauntletAI                                                         | Not in plan                                 | Add to submission checklist                                                                           |
 
 
 ---
