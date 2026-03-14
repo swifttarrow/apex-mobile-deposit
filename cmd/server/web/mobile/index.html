@@ -5,475 +5,797 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Checkstream Mobile</title>
+  <title>Deposit Check</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0d1117;
-      --bg-card: #161b22;
-      --bg-hover: #21262d;
-      --border: #30363d;
-      --text: #e6edf3;
-      --text-muted: #8b949e;
-      --accent: #58a6ff;
-      --success: #3fb950;
-      --fail: #f85149;
-      --warn: #d29922;
+      --background: #F2F3F0;
+      --card: #FFFFFF;
+      --primary: #FF8400;
+      --primary-foreground: #111111;
+      --foreground: #111111;
+      --muted-foreground: #666666;
+      --border: #CBCCC9;
+      --secondary: #E7E8E5;
+      --input: #CBCCC9;
+      --destructive: #D93C15;
+      --color-success: #DFE6E1;
+      --color-success-foreground: #004D1A;
+      --color-error: #E5DCDA;
+      --color-error-foreground: #8C1C00;
+      --color-warning: #E9E3D8;
+      --color-warning-foreground: #804200;
+      --radius-m: 16px;
+      --radius-pill: 999px;
+      --font-primary: 'JetBrains Mono', monospace;
+      --font-secondary: 'Geist', system-ui, sans-serif;
+      --tab-height: 72px;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body {
-      font-family: 'DM Sans', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      font-family: var(--font-secondary);
+      background: var(--background);
+      color: var(--foreground);
       min-height: 100vh;
-      max-width: 480px;
+      max-width: 430px;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
     }
 
-    .app { padding: 1.5rem 1rem; }
+    /* ── Layout ── */
+    .app {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 100vh;
+    }
+    .screen-area {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: calc(var(--tab-height) + 8px);
+    }
 
-    /* Screens */
+    /* ── Tab Bar ── */
+    .tab-bar {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 430px;
+      height: var(--tab-height);
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      z-index: 100;
+    }
+    .tab-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 0;
+      cursor: pointer;
+      color: var(--muted-foreground);
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: none;
+      background: none;
+    }
+    .tab-item.active { color: var(--primary); }
+    .tab-item svg { width: 22px; height: 22px; }
+    .tab-item.active svg { stroke: var(--primary); }
+
+    /* ── Screen ── */
     .screen { display: none; }
     .screen.active { display: block; }
 
-    /* Settings screen */
-    .settings-group { margin-bottom: 1.5rem; }
-    .settings-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
-    .settings-group input { width: 100%; padding: 0.6rem 0.8rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem; }
-    .settings-group select { width: 100%; padding: 0.6rem 0.8rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.95rem; }
-    /* Check carousel */
-    .check-carousel { display: flex; gap: 0.75rem; overflow-x: auto; padding: 0.5rem 0; margin-top: 0.5rem; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
-    .check-carousel::-webkit-scrollbar { height: 4px; }
-    .check-carousel::-webkit-scrollbar-track { background: var(--border); border-radius: 2px; }
-    .check-carousel::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
-    .check-card {
-      flex: 0 0 140px; scroll-snap-align: start;
-      background: var(--bg-card); border: 2px solid var(--border); border-radius: 10px;
-      padding: 0.75rem; text-align: center; cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
+    /* ── Page Header ── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px 8px;
     }
-    .check-card:hover { border-color: var(--accent); }
-    .check-card.selected { border-color: var(--accent); background: rgba(88,166,255,0.1); }
-    .check-card-num { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; }
-    .check-card-label { font-size: 0.9rem; font-weight: 600; }
-    .check-card-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.3rem; }
+    .back-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--foreground); padding: 4px; line-height: 1;
+    }
+    .page-title { font-size: 22px; font-weight: 700; }
 
-    /* Capture screen */
-    .capture-step { margin-bottom: 1.5rem; }
-    .step-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-    .camera-area {
-      background: var(--bg-card);
-      border: 2px dashed var(--border);
-      border-radius: 12px;
-      height: 180px;
+    /* ── Deposit Capture ── */
+    .capture-content { padding: 0 20px 20px; }
+    .field-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--foreground);
+      margin-bottom: 8px;
+      margin-top: 20px;
+    }
+    .camera-box {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-m);
+      height: 160px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: border-color 0.15s;
       position: relative;
       overflow: hidden;
     }
-    .camera-area.captured { border-style: solid; border-color: var(--success); }
-    .camera-area:hover { border-color: var(--accent); }
-    .camera-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
-    .camera-label { font-size: 0.9rem; color: var(--text-muted); }
-    .camera-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
-    .camera-area .captured-badge {
+    .camera-box.captured { border-color: var(--color-success-foreground); }
+    .camera-icon-wrap {
+      width: 44px; height: 44px;
+      background: var(--secondary);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 8px;
+    }
+    .camera-icon-wrap svg { width: 22px; height: 22px; stroke: var(--muted-foreground); }
+    .camera-hint { font-size: 13px; color: var(--muted-foreground); }
+    .camera-box img { width: 100%; height: 100%; object-fit: cover; }
+    .captured-badge {
       position: absolute; top: 8px; right: 8px;
-      background: var(--success); color: #0d1117;
-      font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 4px;
+      background: var(--color-success-foreground); color: #fff;
+      font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill);
     }
-
-    /* Review screen */
-    .review-section { margin-bottom: 1.25rem; }
-    .review-section h3 { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.6rem; }
-    .review-images { display: flex; gap: 0.75rem; }
-    .review-thumb { flex: 1; }
-    .review-thumb p { font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.3rem; }
-    .review-thumb img { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
-    .review-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-    .review-row .label { color: var(--text-muted); }
-    .review-row .val { font-weight: 600; }
-
-    /* Result screen */
-    .result-icon { font-size: 3rem; text-align: center; margin: 1.5rem 0 0.75rem; }
-    .result-title { text-align: center; font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .result-id { text-align: center; font-size: 0.8rem; color: var(--text-muted); font-family: monospace; margin-bottom: 1.5rem; word-break: break-all; }
-    .result-detail { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
-    .result-detail pre { white-space: pre-wrap; word-break: break-all; color: var(--text-muted); font-size: 0.75rem; margin-top: 0.5rem; }
-
-    /* Shared */
-    .btn {
-      width: 100%;
-      padding: 0.85rem;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
+    .amount-input-wrap {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-m);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      height: 48px;
+    }
+    .amount-prefix { font-size: 16px; color: var(--muted-foreground); margin-right: 4px; }
+    .amount-input {
+      flex: 1;
       border: none;
-      margin-bottom: 0.75rem;
+      background: none;
+      font-size: 16px;
+      font-family: var(--font-secondary);
+      color: var(--foreground);
+      outline: none;
     }
-    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn-primary { background: var(--accent); color: #0d1117; }
-    .btn-success { background: var(--success); color: #0d1117; }
-    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    .btn-danger { background: var(--fail); color: #fff; }
+    .account-select {
+      width: 100%;
+      height: 48px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-m);
+      padding: 0 16px;
+      font-size: 15px;
+      font-family: var(--font-secondary);
+      color: var(--foreground);
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+    }
+    .submit-btn {
+      width: 100%;
+      height: 52px;
+      margin-top: 28px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      border-radius: var(--radius-pill);
+      font-size: 16px;
+      font-weight: 700;
+      font-family: var(--font-secondary);
+      cursor: pointer;
+    }
+    .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    .page-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.25rem; }
-    .page-subtitle { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; }
+    /* scenario selector */
+    .scenario-row {
+      display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px;
+      scrollbar-width: none;
+    }
+    .scenario-row::-webkit-scrollbar { display: none; }
+    .scenario-chip {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      color: var(--muted-foreground);
+    }
+    .scenario-chip.selected {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: var(--primary-foreground);
+      font-weight: 700;
+    }
 
-    .progress-bar { display: flex; gap: 0.4rem; margin-bottom: 1.5rem; }
-    .progress-step { flex: 1; height: 4px; border-radius: 2px; background: var(--border); }
-    .progress-step.done { background: var(--success); }
-    .progress-step.active { background: var(--accent); }
+    /* ── Status Screen ── */
+    .status-banner {
+      margin: 16px 20px 0;
+      padding: 14px 16px;
+      border-radius: var(--radius-m);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .status-banner.success { background: var(--color-success); }
+    .status-banner.error { background: var(--color-error); }
+    .status-banner.warning { background: var(--color-warning); }
+    .status-banner-icon { flex-shrink: 0; margin-top: 2px; }
+    .status-banner-title { font-size: 14px; font-weight: 700; }
+    .status-banner.success .status-banner-title { color: var(--color-success-foreground); }
+    .status-banner.error .status-banner-title { color: var(--color-error-foreground); }
+    .status-banner.warning .status-banner-title { color: var(--color-warning-foreground); }
+    .status-banner-sub { font-size: 13px; margin-top: 2px; color: var(--muted-foreground); }
+
+    .info-card {
+      margin: 16px 20px 0;
+      background: var(--card);
+      border-radius: var(--radius-m);
+      padding: 16px;
+    }
+    .info-card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .lbl { color: var(--muted-foreground); }
+    .info-row .val { font-weight: 600; }
+
+    /* Stepper */
+    .stepper { display: flex; flex-direction: column; gap: 0; }
+    .step-item { display: flex; align-items: flex-start; gap: 14px; }
+    .step-left { display: flex; flex-direction: column; align-items: center; }
+    .step-circle {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--card);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 11px; font-weight: 700;
+    }
+    .step-circle.done { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
+    .step-circle.active { border-color: var(--primary); color: var(--primary); }
+    .step-line { width: 2px; flex: 1; min-height: 20px; background: var(--border); margin: 2px 0; }
+    .step-line.done { background: var(--primary); }
+    .step-label-wrap { padding: 4px 0 20px; }
+    .step-name { font-size: 14px; font-weight: 600; }
+    .step-name.active { color: var(--primary); }
+    .step-name.muted { color: var(--muted-foreground); }
+
+    /* ── History Screen ── */
+    .history-header { padding: 16px 20px 8px; }
+    .history-title-row {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .search-bar {
+      margin: 8px 20px 0;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-pill);
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 16px; height: 40px;
+    }
+    .search-bar input {
+      flex: 1; border: none; background: none;
+      font-size: 14px; font-family: var(--font-secondary);
+      color: var(--foreground); outline: none;
+    }
+    .search-bar input::placeholder { color: var(--muted-foreground); }
+    .deposit-list { padding: 8px 20px 0; }
+    .deposit-card {
+      background: var(--card);
+      border-radius: var(--radius-m);
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .deposit-card-left .check-num { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .deposit-card-left .amount { font-size: 14px; color: var(--muted-foreground); }
+    .deposit-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .state-badge {
+      font-size: 12px; font-weight: 600;
+      padding: 3px 10px; border-radius: var(--radius-pill);
+    }
+    .state-badge.Completed, .state-badge.FundsPosted { background: var(--color-success); color: var(--color-success-foreground); }
+    .state-badge.Rejected, .state-badge.Returned { background: var(--color-error); color: var(--color-error-foreground); }
+    .state-badge.Analyzing { background: var(--color-warning); color: var(--color-warning-foreground); }
+    .state-badge.Requested, .state-badge.Validating, .state-badge.Approved { background: var(--secondary); color: var(--muted-foreground); }
+    .deposit-date { font-size: 12px; color: var(--muted-foreground); }
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--muted-foreground); font-size: 14px; }
+    .loading-state { text-align: center; padding: 48px 20px; color: var(--muted-foreground); font-size: 14px; }
   </style>
 </head>
 <body>
-  <div class="app">
+<div class="app">
+  <div class="screen-area">
 
-    <!-- Screen 1: Setup -->
-    <div class="screen active" id="screenSetup">
-      <div class="page-title">Deposit a Check</div>
-      <div class="page-subtitle">Configure your deposit details</div>
-      <div class="progress-bar">
-        <div class="progress-step active"></div>
-        <div class="progress-step"></div>
-        <div class="progress-step"></div>
-        <div class="progress-step"></div>
+    <!-- ── CAPTURE SCREEN ── -->
+    <div class="screen active" id="screenCapture">
+      <div class="page-header">
+        <div class="page-title">Deposit Check</div>
+      </div>
+      <div class="capture-content">
+        <div class="field-label">Front of Check</div>
+        <div class="camera-box" id="frontBox">
+          <div class="camera-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+          <span class="camera-hint">Tap to capture</span>
+        </div>
+
+        <div class="field-label">Back of Check</div>
+        <div class="camera-box" id="backBox">
+          <div class="camera-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+          <span class="camera-hint">Tap to capture</span>
+        </div>
+
+        <div class="field-label">Deposit Amount</div>
+        <div class="amount-input-wrap">
+          <span class="amount-prefix">$</span>
+          <input class="amount-input" type="number" id="amountInput" value="0.00" step="0.01" min="0.01">
+        </div>
+
+        <div class="field-label">Account</div>
+        <select class="account-select" id="accountSelect">
+          <option value="ACC-001">Individual Brokerage – ****4821</option>
+          <option value="ACC-002">IRA Account – ****3302</option>
+          <option value="ACC-003">Joint Account – ****7714</option>
+          <option value="ACC-IQA-BLUR">Test: IQA Blur</option>
+          <option value="ACC-IQA-GLARE">Test: IQA Glare</option>
+          <option value="ACC-MICR-FAIL">Test: MICR Fail</option>
+        </select>
+
+        <div class="field-label">Check Scenario</div>
+        <div class="scenario-row" id="scenarioRow">
+          <div class="scenario-chip selected" data-check="1" data-scenario="clean_pass">Clean Pass</div>
+          <div class="scenario-chip" data-check="2" data-scenario="iqafail_blur">IQA Blur</div>
+          <div class="scenario-chip" data-check="3" data-scenario="iqafail_glare">IQA Glare</div>
+          <div class="scenario-chip" data-check="4" data-scenario="micr_fail">MICR Fail</div>
+          <div class="scenario-chip" data-check="5" data-scenario="amount_mismatch">Amt Mismatch</div>
+          <div class="scenario-chip" data-check="6" data-scenario="duplicate">Duplicate</div>
+        </div>
+
+        <button class="submit-btn" id="submitBtn" disabled>Submit Deposit</button>
+      </div>
+    </div>
+
+    <!-- ── STATUS SCREEN ── -->
+    <div class="screen" id="screenStatus">
+      <div class="page-header">
+        <button class="back-btn" id="statusBackBtn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
+        <div class="page-title">Deposit Status</div>
       </div>
 
-      <div class="settings-group">
-        <label>API Base URL</label>
-        <input type="text" id="apiBase" placeholder="http://localhost:8080">
-      </div>
-      <div class="settings-group">
-        <label>Account ID</label>
-        <input type="text" id="accountId" value="ACC-001">
-      </div>
-      <div class="settings-group">
-        <label>Amount ($)</label>
-        <input type="number" id="amount" value="150.00" step="0.01" min="0.01">
-      </div>
-      <div class="settings-group">
-        <label>Select Check Scenario</label>
-        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">Each check triggers a different validation path</p>
-        <div class="check-carousel" id="checkCarousel">
-          <div class="check-card selected" data-check="1">
-            <div class="check-card-num">Check 1</div>
-            <div class="check-card-label">Clean pass</div>
-            <div class="check-card-hint">Happy path</div>
-          </div>
-          <div class="check-card" data-check="2">
-            <div class="check-card-num">Check 2</div>
-            <div class="check-card-label">IQA Blur</div>
-            <div class="check-card-hint">Image too blurry</div>
-          </div>
-          <div class="check-card" data-check="3">
-            <div class="check-card-num">Check 3</div>
-            <div class="check-card-label">IQA Glare</div>
-            <div class="check-card-hint">Glare detected</div>
-          </div>
-          <div class="check-card" data-check="4">
-            <div class="check-card-num">Check 4</div>
-            <div class="check-card-label">MICR fail</div>
-            <div class="check-card-hint">Flagged for review</div>
-          </div>
-          <div class="check-card" data-check="5">
-            <div class="check-card-num">Check 5</div>
-            <div class="check-card-label">Amount mismatch</div>
-            <div class="check-card-hint">OCR vs entered</div>
-          </div>
-          <div class="check-card" data-check="6">
-            <div class="check-card-num">Check 6</div>
-            <div class="check-card-label">Duplicate</div>
-            <div class="check-card-hint">Rejected</div>
-          </div>
+      <div id="statusBanner" class="status-banner success">
+        <div class="status-banner-icon">
+          <svg id="statusBannerIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#004D1A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+        </div>
+        <div>
+          <div class="status-banner-title" id="statusBannerTitle">Deposit Submitted</div>
+          <div class="status-banner-sub" id="statusBannerSub">Your check is being validated</div>
         </div>
       </div>
-      <button class="btn btn-primary" id="startCaptureBtn">Start Check Capture</button>
+
+      <div class="info-card">
+        <div class="info-card-title">Deposit Details</div>
+        <div class="info-row"><span class="lbl">Amount</span><span class="val" id="statusAmount">—</span></div>
+        <div class="info-row"><span class="lbl">Account</span><span class="val" id="statusAccount">—</span></div>
+        <div class="info-row"><span class="lbl">Check #</span><span class="val" id="statusCheck">—</span></div>
+        <div class="info-row"><span class="lbl">Submitted</span><span class="val" id="statusDate">—</span></div>
+      </div>
+
+      <div class="info-card">
+        <div class="info-card-title">Transfer Progress</div>
+        <div class="stepper" id="stepper"></div>
+      </div>
     </div>
 
-    <!-- Screen 2: Capture Front -->
-    <div class="screen" id="screenFront">
-      <div class="page-title">Capture Front</div>
-      <div class="page-subtitle">Tap the area below to "take" the front photo</div>
-      <div class="progress-bar">
-        <div class="progress-step done"></div>
-        <div class="progress-step active"></div>
-        <div class="progress-step"></div>
-        <div class="progress-step"></div>
-      </div>
-
-      <div class="camera-area" id="frontCameraArea">
-        <div class="camera-icon">📷</div>
-        <div class="camera-label">Tap to capture front of check</div>
-      </div>
-      <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.75rem;margin-bottom:1.5rem">
-        This uses mock check images — no real camera required.
-      </p>
-      <button class="btn btn-primary" id="frontDoneBtn" disabled>Continue to Back →</button>
-      <button class="btn btn-outline" id="frontBackBtn">← Back to Setup</button>
-    </div>
-
-    <!-- Screen 3: Capture Back -->
-    <div class="screen" id="screenBack">
-      <div class="page-title">Capture Back</div>
-      <div class="page-subtitle">Tap the area below to "take" the back photo</div>
-      <div class="progress-bar">
-        <div class="progress-step done"></div>
-        <div class="progress-step done"></div>
-        <div class="progress-step active"></div>
-        <div class="progress-step"></div>
-      </div>
-
-      <div class="camera-area" id="backCameraArea">
-        <div class="camera-icon">📷</div>
-        <div class="camera-label">Tap to capture back of check</div>
-      </div>
-      <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.75rem;margin-bottom:1.5rem">
-        This uses mock check images — no real camera required.
-      </p>
-      <button class="btn btn-primary" id="backDoneBtn" disabled>Review & Submit →</button>
-      <button class="btn btn-outline" id="backBackBtn">← Recapture Front</button>
-    </div>
-
-    <!-- Screen 4: Review & Submit -->
-    <div class="screen" id="screenReview">
-      <div class="page-title">Review & Submit</div>
-      <div class="page-subtitle">Confirm your deposit details</div>
-      <div class="progress-bar">
-        <div class="progress-step done"></div>
-        <div class="progress-step done"></div>
-        <div class="progress-step done"></div>
-        <div class="progress-step active"></div>
-      </div>
-
-      <div class="review-section">
-        <h3>Check Images</h3>
-        <div class="review-images">
-          <div class="review-thumb">
-            <img id="reviewFrontImg" src="" alt="Front">
-            <p>Front</p>
-          </div>
-          <div class="review-thumb">
-            <img id="reviewBackImg" src="" alt="Back">
-            <p>Back</p>
-          </div>
+    <!-- ── HISTORY SCREEN ── -->
+    <div class="screen" id="screenHistory">
+      <div class="history-header">
+        <div class="history-title-row">
+          <div class="page-title">Deposits</div>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
         </div>
       </div>
-      <div class="review-section">
-        <h3>Deposit Details</h3>
-        <div class="review-row"><span class="label">Account</span><span class="val" id="reviewAccount">—</span></div>
-        <div class="review-row"><span class="label">Amount</span><span class="val" id="reviewAmount">—</span></div>
-        <div class="review-row"><span class="label">Mock Check</span><span class="val" id="reviewCheck">—</span></div>
-        <div class="review-row"><span class="label">Source</span><span class="val">Mobile (simulated)</span></div>
+      <div class="search-bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" id="historySearch" placeholder="Search...">
       </div>
-
-      <button class="btn btn-success" id="submitBtn">Submit Deposit</button>
-      <button class="btn btn-outline" id="reviewBackBtn">← Recapture Back</button>
+      <div class="deposit-list" id="depositList">
+        <div class="loading-state">Loading deposits…</div>
+      </div>
     </div>
 
-    <!-- Screen 5: Result -->
-    <div class="screen" id="screenResult">
-      <div class="result-icon" id="resultIcon">✓</div>
-      <div class="result-title" id="resultTitle">Deposit Submitted</div>
-      <div class="result-id" id="resultId"></div>
-      <div class="result-detail" id="resultDetail"></div>
-      <button class="btn btn-primary" id="depositAnotherBtn">Deposit Another Check</button>
-    </div>
+  </div><!-- /screen-area -->
 
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-item active" id="tabCapture">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      HOME
+    </button>
+    <button class="tab-item" id="tabDeposits">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+      </svg>
+      DEPOSITS
+    </button>
+    <button class="tab-item" id="tabActivity">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      ACTIVITY
+    </button>
+    <button class="tab-item" id="tabProfile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      PROFILE
+    </button>
   </div>
+</div>
 
-  <script>
-    const $ = id => document.getElementById(id);
+<script>
+const $ = id => document.getElementById(id);
 
-    // State
-    let selectedCheck = 1;
-    let frontCaptured = false;
-    let backCaptured = false;
+// ── State ──
+let state = {
+  selectedCheck: 1,
+  selectedScenario: 'clean_pass',
+  frontCaptured: false,
+  backCaptured: false,
+  currentTransfer: null,
+  pollTimer: null,
+  activeTab: 'capture',
+  apiBase: '',
+  historyDeposits: [],
+};
 
-    // Check index -> vendor stub scenario (drives validation path)
-    const CHECK_SCENARIOS = {
-      1: 'clean_pass',
-      2: 'iqafail_blur',
-      3: 'iqafail_glare',
-      4: 'micr_fail',
-      5: 'amount_mismatch',
-      6: 'duplicate'
-    };
+const CHECK_IMAGES = {
+  1: 'clean-check.png', 2: 'blurry-check.png', 3: 'glare-check.png',
+  4: 'micr-check.png',  5: 'mismatch-check.png', 6: 'clean-check.png',
+};
+const STEPS = ['Requested','Validating','Analyzing','Approved','FundsPosted','Completed'];
+const STEP_LABELS = {
+  Requested:'Requested', Validating:'Validating', Analyzing:'Analyzing',
+  Approved:'Approved', FundsPosted:'Funds Posted', Completed:'Completed',
+};
 
-    const SCENARIO_LABELS = {
-      clean_pass: 'Clean pass',
-      iqafail_blur: 'IQA Blur',
-      iqafail_glare: 'IQA Glare',
-      micr_fail: 'MICR fail',
-      amount_mismatch: 'Amount mismatch',
-      duplicate: 'Duplicate'
-    };
+function apiBase() {
+  if (state.apiBase) return state.apiBase;
+  return location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
+}
+function checkImgUrl(num, side) {
+  const file = side === 'front' ? (CHECK_IMAGES[num] || 'clean-check.png') : 'back-of-check.png';
+  return `/mobile/checks/${file}`;
+}
 
-    function apiBase() {
-      return ($('apiBase').value || '').trim() || (location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin);
+// ── Tabs ──
+function showTab(tab) {
+  ['capture','deposits','activity','profile'].forEach(t => {
+    $('tab' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.remove('active');
+  });
+  state.activeTab = tab;
+
+  if (tab === 'capture') {
+    $('tabCapture').classList.add('active');
+    showScreen('screenCapture');
+  } else if (tab === 'deposits') {
+    $('tabDeposits').classList.add('active');
+    showScreen('screenHistory');
+    loadHistory();
+  } else if (tab === 'activity') {
+    $('tabActivity').classList.add('active');
+    showScreen('screenHistory'); // reuse history as activity for now
+    loadHistory();
+  } else if (tab === 'profile') {
+    $('tabProfile').classList.add('active');
+    showScreen('screenCapture'); // no profile screen, stay on capture
+  }
+}
+
+$('tabCapture').onclick  = () => showTab('capture');
+$('tabDeposits').onclick = () => showTab('deposits');
+$('tabActivity').onclick = () => showTab('activity');
+$('tabProfile').onclick  = () => showTab('profile');
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+// ── Capture Screen ──
+document.querySelectorAll('.scenario-chip').forEach(chip => {
+  chip.onclick = () => {
+    document.querySelectorAll('.scenario-chip').forEach(c => c.classList.remove('selected'));
+    chip.classList.add('selected');
+    state.selectedCheck = parseInt(chip.dataset.check, 10);
+    state.selectedScenario = chip.dataset.scenario;
+  };
+});
+
+function setCaptured(box, side) {
+  const url = checkImgUrl(state.selectedCheck, side);
+  box.innerHTML = `<img src="${url}" onerror="this.style.display='none'" alt="${side}"><div class="captured-badge">✓</div>`;
+  box.classList.add('captured');
+}
+
+$('frontBox').onclick = () => { setCaptured($('frontBox'), 'front'); state.frontCaptured = true; updateSubmitBtn(); };
+$('backBox').onclick  = () => { setCaptured($('backBox'), 'back');  state.backCaptured  = true; updateSubmitBtn(); };
+
+function updateSubmitBtn() {
+  $('submitBtn').disabled = !(state.frontCaptured && state.backCaptured);
+}
+
+$('submitBtn').onclick = async () => {
+  const btn = $('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const accountId = $('accountSelect').value;
+    const amount = parseFloat($('amountInput').value) || 0;
+    const scenario = state.selectedScenario;
+
+    const frontUrl = checkImgUrl(state.selectedCheck, 'front');
+    const backUrl  = checkImgUrl(state.selectedCheck, 'back');
+    let frontBlob, backBlob;
+    try {
+      const [fr, br] = await Promise.all([fetch(frontUrl), fetch(backUrl)]);
+      frontBlob = await fr.blob();
+      backBlob  = await br.blob();
+    } catch(e) {
+      frontBlob = new Blob(['mock-front'], { type: 'image/png' });
+      backBlob  = new Blob(['mock-back'],  { type: 'image/png' });
     }
 
-    const CHECK_IMAGES = {
-      1: { front: 'clean-check.png', back: 'back-of-check.png' },
-      2: { front: 'blurry-check.png', back: 'back-of-check.png' },
-      3: { front: 'glare-check.png', back: 'back-of-check.png' },
-      4: { front: 'micr-check.png', back: 'back-of-check.png' },
-      5: { front: 'mismatch-check.png', back: 'back-of-check.png' },
-      6: { front: 'clean-check.png', back: 'back-of-check.png' }
-    };
+    const form = new FormData();
+    form.append('front_image', frontBlob, `check-${state.selectedCheck}-front.png`);
+    form.append('back_image',  backBlob,  `check-${state.selectedCheck}-back.png`);
+    form.append('account_id', accountId);
+    form.append('amount', String(amount));
+    form.append('source', 'mobile');
+    form.append('scenario', scenario);
 
-    function checkImgUrl(num, side) {
-      const files = CHECK_IMAGES[num] || CHECK_IMAGES[1];
-      return `/mobile/checks/${files[side]}`;
-    }
-
-    function showScreen(id) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      $(id).classList.add('active');
-    }
-
-    // Check carousel selector
-    document.querySelectorAll('.check-card').forEach(card => {
-      card.onclick = () => {
-        document.querySelectorAll('.check-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        selectedCheck = parseInt(card.dataset.check, 10);
-      };
+    let r = await fetch(`${apiBase()}/deposits`, {
+      method: 'POST',
+      headers: { 'X-Test-Scenario': scenario },
+      body: form,
     });
-
-    $('startCaptureBtn').onclick = () => {
-      frontCaptured = false;
-      backCaptured = false;
-      resetCameraArea('frontCameraArea');
-      resetCameraArea('backCameraArea');
-      $('frontDoneBtn').disabled = true;
-      $('backDoneBtn').disabled = true;
-      showScreen('screenFront');
-    };
-
-    function resetCameraArea(areaId) {
-      const area = $(areaId);
-      area.className = 'camera-area';
-      area.innerHTML = `<div class="camera-icon">📷</div><div class="camera-label">Tap to capture ${areaId.includes('front') ? 'front' : 'back'} of check</div>`;
+    if (r.status === 415 || r.status === 400) {
+      r = await fetch(`${apiBase()}/deposits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Test-Scenario': scenario },
+        body: JSON.stringify({ account_id: accountId, amount, front_image: 'mock-front', back_image: 'mock-back', source: 'mobile', scenario }),
+      });
     }
 
-    function captureImage(side, areaId, doneBtn) {
-      const area = $(areaId);
-      const url = checkImgUrl(selectedCheck, side);
-      area.className = 'camera-area captured';
-      area.innerHTML = `<img src="${url}" onerror="this.src=''" alt="${side}"><div class="captured-badge">✓ Captured</div>`;
-      $(doneBtn).disabled = false;
-    }
+    const j = await r.json();
+    const transfer = j.transfer || j;
+    state.currentTransfer = transfer;
+    showStatusScreen(transfer, r.ok ? 'success' : 'error');
+  } catch(e) {
+    showStatusScreen(null, 'error', e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit Deposit';
+  }
+};
 
-    $('frontCameraArea').onclick = () => {
-      captureImage('front', 'frontCameraArea', 'frontDoneBtn');
-      frontCaptured = true;
-    };
-    $('frontDoneBtn').onclick = () => { if (frontCaptured) showScreen('screenBack'); };
-    $('frontBackBtn').onclick = () => showScreen('screenSetup');
+// ── Status Screen ──
+function showStatusScreen(transfer, kind, errMsg) {
+  stopPolling();
+  // Banner
+  const banner = $('statusBanner');
+  banner.className = 'status-banner ' + kind;
+  const iconEl = $('statusBannerIcon');
 
-    $('backCameraArea').onclick = () => {
-      captureImage('back', 'backCameraArea', 'backDoneBtn');
-      backCaptured = true;
-    };
-    $('backDoneBtn').onclick = () => {
-      if (!backCaptured) return;
-      // Populate review
-      $('reviewFrontImg').src = checkImgUrl(selectedCheck, 'front');
-      $('reviewBackImg').src = checkImgUrl(selectedCheck, 'back');
-      $('reviewAccount').textContent = $('accountId').value || 'ACC-001';
-      $('reviewAmount').textContent = '$' + parseFloat($('amount').value || 0).toFixed(2);
-      $('reviewCheck').textContent = `Check ${selectedCheck}: ${SCENARIO_LABELS[CHECK_SCENARIOS[selectedCheck]] || '—'}`;
-      showScreen('screenReview');
-    };
-    $('backBackBtn').onclick = () => showScreen('screenFront');
+  if (kind === 'success') {
+    $('statusBannerTitle').textContent = 'Deposit Submitted';
+    $('statusBannerSub').textContent = 'Your check is being validated';
+    iconEl.setAttribute('stroke', '#004D1A');
+    iconEl.innerHTML = '<path d="M20 6L9 17l-5-5"/>';
+  } else if (kind === 'error') {
+    $('statusBannerTitle').textContent = errMsg || 'Submission Failed';
+    $('statusBannerSub').textContent = 'Please try again';
+    iconEl.setAttribute('stroke', '#8C1C00');
+    iconEl.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+    $('statusAmount').textContent = '—';
+    $('statusAccount').textContent = '—';
+    $('statusCheck').textContent = '—';
+    $('statusDate').textContent = '—';
+    renderStepper(null);
+    showScreen('screenStatus');
+    $('tabCapture').classList.remove('active');
+    $('tabDeposits').classList.add('active');
+    state.activeTab = 'deposits';
+    return;
+  }
 
-    $('reviewBackBtn').onclick = () => showScreen('screenBack');
+  if (transfer) {
+    $('statusAmount').textContent = '$' + (transfer.amount || 0).toFixed(2);
+    $('statusAccount').textContent = transfer.account_id || '—';
+    $('statusCheck').textContent = state.selectedCheck ? `Check #${String(state.selectedCheck).padStart(4,'0')}` : '—';
+    $('statusDate').textContent = transfer.created_at ? new Date(transfer.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    renderStepper(transfer.state);
+    if (!isFinalState(transfer.state)) startPolling(transfer.id);
+  }
 
-    $('submitBtn').onclick = async () => {
-      const base = apiBase();
-      const accountId = $('accountId').value.trim() || 'ACC-001';
-      const amount = parseFloat($('amount').value) || 150;
-      const btn = $('submitBtn');
-      btn.disabled = true;
-      btn.textContent = 'Submitting…';
+  showScreen('screenStatus');
+  $('tabCapture').classList.remove('active');
+  $('tabDeposits').classList.add('active');
+  state.activeTab = 'deposits';
+}
 
-      try {
-        // Fetch mock images as blobs and submit as multipart
-        const frontUrl = checkImgUrl(selectedCheck, 'front');
-        const backUrl = checkImgUrl(selectedCheck, 'back');
+function isFinalState(s) {
+  return s === 'Completed' || s === 'Rejected' || s === 'Returned';
+}
 
-        let frontBlob, backBlob;
-        try {
-          const [fr, br] = await Promise.all([fetch(frontUrl), fetch(backUrl)]);
-          frontBlob = await fr.blob();
-          backBlob = await br.blob();
-        } catch(e) {
-          // If images not found, use placeholder blobs
-          frontBlob = new Blob(['mock-front'], { type: 'image/png' });
-          backBlob = new Blob(['mock-back'], { type: 'image/png' });
+function renderStepper(currentState) {
+  const el = $('stepper');
+  const doneIdx = currentState ? STEPS.indexOf(currentState) : -1;
+  el.innerHTML = STEPS.map((step, i) => {
+    const done   = i < doneIdx;
+    const active = i === doneIdx;
+    const last   = i === STEPS.length - 1;
+    const circleClass = done ? 'done' : active ? 'active' : '';
+    const labelClass  = done ? '' : active ? 'active' : 'muted';
+    const lineClass   = done ? 'done' : '';
+    return `<div class="step-item">
+      <div class="step-left">
+        <div class="step-circle ${circleClass}">${done ? '✓' : i+1}</div>
+        ${!last ? `<div class="step-line ${lineClass}"></div>` : ''}
+      </div>
+      <div class="step-label-wrap">
+        <div class="step-name ${labelClass}">${STEP_LABELS[step] || step}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('statusBackBtn').onclick = () => {
+  stopPolling();
+  showTab('capture');
+};
+
+function startPolling(transferId) {
+  state.pollTimer = setInterval(async () => {
+    try {
+      const r = await fetch(`${apiBase()}/deposits/${transferId}`);
+      if (!r.ok) return;
+      const t = await r.json();
+      renderStepper(t.state);
+      if (isFinalState(t.state)) {
+        stopPolling();
+        // Update banner
+        if (t.state === 'Completed') {
+          $('statusBannerTitle').textContent = 'Deposit Completed';
+          $('statusBannerSub').textContent = 'Funds have been posted';
+        } else if (t.state === 'Rejected') {
+          $('statusBanner').className = 'status-banner error';
+          $('statusBannerTitle').textContent = 'Deposit Rejected';
+          $('statusBannerSub').textContent = 'See details for reason';
+        } else if (t.state === 'Returned') {
+          $('statusBanner').className = 'status-banner warning';
+          $('statusBannerTitle').textContent = 'Deposit Returned';
+          $('statusBannerSub').textContent = 'Check was returned';
         }
+      }
+    } catch(e) {}
+  }, 3000);
+}
+function stopPolling() {
+  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+}
 
-        const scenario = CHECK_SCENARIOS[selectedCheck] || 'clean_pass';
+// ── History Screen ──
+async function loadHistory() {
+  const list = $('depositList');
+  list.innerHTML = '<div class="loading-state">Loading deposits…</div>';
+  const accountId = $('accountSelect').value || 'ACC-001';
+  try {
+    const r = await fetch(`${apiBase()}/deposits?account_id=${encodeURIComponent(accountId)}&limit=50`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    state.historyDeposits = data.transfers || [];
+    renderHistory(state.historyDeposits);
+  } catch(e) {
+    list.innerHTML = `<div class="empty-state">Could not load deposits: ${e.message}</div>`;
+  }
+}
 
-        const form = new FormData();
-        form.append('front_image', frontBlob, `check-${String(selectedCheck).padStart(2,'0')}-front.png`);
-        form.append('back_image', backBlob, `check-${String(selectedCheck).padStart(2,'0')}-back.png`);
-        form.append('account_id', accountId);
-        form.append('amount', String(amount));
-        form.append('source', 'mobile');
-        form.append('scenario', scenario);
-
-        // Try multipart first; fall back to JSON if server doesn't accept multipart
-        let r = await fetch(`${base}/deposits`, {
-          method: 'POST',
-          headers: { 'X-Test-Scenario': scenario },
-          body: form
-        });
-
-        // Fallback to JSON if multipart not supported
-        if (r.status === 415 || r.status === 400) {
-          r = await fetch(`${base}/deposits`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Test-Scenario': scenario },
-            body: JSON.stringify({ account_id: accountId, amount, front_image: 'mock-front', back_image: 'mock-back', source: 'mobile', scenario })
-          });
-        }
-
-        const j = await r.json();
-        const ok = r.status === 201 || r.status === 202 || r.status === 200;
-
-        $('resultIcon').textContent = ok ? '✅' : '❌';
-        $('resultTitle').textContent = ok ? 'Deposit Submitted!' : 'Submission Failed';
-        $('resultId').textContent = ok ? `Transfer ID: ${j.id || j.transfer?.id || '—'}` : '';
-        $('resultDetail').innerHTML = `<strong>HTTP ${r.status}</strong><pre>${JSON.stringify(j, null, 2)}</pre>`;
-        showScreen('screenResult');
-      } catch(e) {
-        $('resultIcon').textContent = '❌';
-        $('resultTitle').textContent = 'Error';
-        $('resultId').textContent = '';
-        $('resultDetail').innerHTML = `<strong>Network error</strong><pre>${e.message}</pre>`;
-        showScreen('screenResult');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Submit Deposit';
+function renderHistory(deposits) {
+  const list = $('depositList');
+  if (!deposits.length) { list.innerHTML = '<div class="empty-state">No deposits yet</div>'; return; }
+  list.innerHTML = deposits.map((d, i) => {
+    const num = String(1038 + i).padStart(4,'0');
+    const date = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    return `<div class="deposit-card" data-id="${d.id}">
+      <div class="deposit-card-left">
+        <div class="check-num">Check #${num}</div>
+        <div class="amount">$${(d.amount||0).toFixed(2)}</div>
+      </div>
+      <div class="deposit-card-right">
+        <span class="state-badge ${d.state}">${d.state}</span>
+        <span class="deposit-date">${date}</span>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.deposit-card').forEach(card => {
+    card.onclick = () => {
+      const t = state.historyDeposits.find(x => x.id === card.dataset.id);
+      if (t) {
+        state.currentTransfer = t;
+        showStatusScreen(t, 'success');
       }
     };
+  });
+}
 
-    $('depositAnotherBtn').onclick = () => {
-      frontCaptured = false;
-      backCaptured = false;
-      showScreen('screenSetup');
-    };
+$('historySearch').oninput = (e) => {
+  const q = e.target.value.toLowerCase();
+  const filtered = state.historyDeposits.filter(d =>
+    d.account_id?.toLowerCase().includes(q) ||
+    d.state?.toLowerCase().includes(q) ||
+    String(d.amount).includes(q)
+  );
+  renderHistory(filtered);
+};
 
-    // Init
-    $('apiBase').value = location.origin.includes('localhost') ? 'http://localhost:8080' : (location.origin || '');
-  </script>
+// ── Init ──
+state.apiBase = location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
+</script>
 </body>
 </html>
