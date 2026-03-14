@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
+	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
@@ -15,7 +17,6 @@ import (
 	"github.com/checkstream/checkstream/internal/settlement"
 	"github.com/checkstream/checkstream/internal/transfer"
 	"github.com/checkstream/checkstream/internal/vendor"
-	"os"
 )
 
 func setupFullMux(t *testing.T) *http.ServeMux {
@@ -32,10 +33,14 @@ func setupFullMux(t *testing.T) *http.ServeMux {
 	fundingCfg := funding.NewConfig()
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
 	operatorRepo := operator.NewRepository(database)
+	if err := operatorRepo.SeedTestOperators(); err != nil {
+		t.Fatalf("seed operators: %v", err)
+	}
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
 	returnSvc := returnpkg.NewService(database, transferRepo, ledgerSvc)
 
 	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
+	authHandler := NewAuthHandler(operatorRepo)
 	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
 	settlementHandler := NewSettlementHandler(settlementEngine)
 	returnsHandler := NewReturnsHandler(returnSvc)
@@ -44,10 +49,11 @@ func setupFullMux(t *testing.T) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deposits", WithIdempotency(database, depositHandler.Create))
 	mux.HandleFunc("GET /deposits/{id}", depositHandler.Get)
-	mux.HandleFunc("GET /operator/queue", operatorHandler.Queue)
-	mux.HandleFunc("POST /operator/approve", operatorHandler.Approve)
-	mux.HandleFunc("POST /operator/reject", operatorHandler.Reject)
-	mux.HandleFunc("POST /settlement/trigger", settlementHandler.Trigger)
+	mux.HandleFunc("POST /operator/login", authHandler.Login)
+	mux.HandleFunc("GET /operator/queue", auth.RequireOperator(operatorHandler.Queue))
+	mux.HandleFunc("POST /operator/approve", auth.RequireOperator(operatorHandler.Approve))
+	mux.HandleFunc("POST /operator/reject", auth.RequireOperator(operatorHandler.Reject))
+	mux.HandleFunc("POST /settlement/trigger", auth.RequireOperator(settlementHandler.Trigger))
 	mux.HandleFunc("POST /returns", returnsHandler.ProcessReturn)
 	mux.HandleFunc("GET /ledger", ledgerHandler.List)
 	mux.HandleFunc("GET /accounts/{id}/balance", ledgerHandler.Balance)
@@ -61,6 +67,28 @@ func doPost(t *testing.T, mux *http.ServeMux, path string, body interface{}, hea
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
 		req.Header.Set(k, v)
+	}
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	return rr
+}
+
+func loginAndGetCookies(t *testing.T, mux *http.ServeMux) []*http.Cookie {
+	t.Helper()
+	rr := doPost(t, mux, "/operator/login", map[string]interface{}{"username": "joe", "password": "password"}, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("login failed: %d %s", rr.Code, rr.Body.String())
+	}
+	return rr.Result().Cookies()
+}
+
+func doPostWithCookies(t *testing.T, mux *http.ServeMux, path string, body interface{}, cookies []*http.Cookie) *httptest.ResponseRecorder {
+	t.Helper()
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	for _, c := range cookies {
+		req.AddCookie(c)
 	}
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -140,11 +168,11 @@ func TestScenario_MICRFail_OperatorApprove(t *testing.T) {
 	id := tr["id"].(string)
 
 	// Operator approves
-	rr2 := doPost(t, mux, "/operator/approve", map[string]interface{}{
+	cookies := loginAndGetCookies(t, mux)
+	rr2 := doPostWithCookies(t, mux, "/operator/approve", map[string]interface{}{
 		"transfer_id": id,
-		"operator_id": "op-001",
 		"note":        "manually verified",
-	}, nil)
+	}, cookies)
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("scenario 4: approve failed: %d: %s", rr2.Code, rr2.Body.String())
 	}
@@ -172,11 +200,11 @@ func TestScenario_MICRFail_OperatorReject(t *testing.T) {
 	tr := result["transfer"].(map[string]interface{})
 	id := tr["id"].(string)
 
-	rr2 := doPost(t, mux, "/operator/reject", map[string]interface{}{
+	cookies := loginAndGetCookies(t, mux)
+	rr2 := doPostWithCookies(t, mux, "/operator/reject", map[string]interface{}{
 		"transfer_id": id,
-		"operator_id": "op-001",
 		"note":        "suspicious",
-	}, nil)
+	}, cookies)
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("reject failed: %d: %s", rr2.Code, rr2.Body.String())
 	}
@@ -303,7 +331,8 @@ func TestScenario_Settlement(t *testing.T) {
 	}
 
 	// Trigger settlement
-	rr2 := doPost(t, mux, "/settlement/trigger", nil, nil)
+	cookies := loginAndGetCookies(t, mux)
+	rr2 := doPostWithCookies(t, mux, "/settlement/trigger", nil, cookies)
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("settlement failed: %d: %s", rr2.Code, rr2.Body.String())
 	}

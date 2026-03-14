@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
@@ -96,14 +97,19 @@ func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 
 // ApproveRequest is the request body for POST /operator/approve.
 type ApproveRequest struct {
-	TransferID           string `json:"transfer_id"`
-	OperatorID           string `json:"operator_id"`
-	Note                 string `json:"note"`
+	TransferID              string `json:"transfer_id"`
+	Note                    string `json:"note"`
 	ContributionTypeOverride string `json:"contribution_type,omitempty"`
 }
 
 // Approve handles POST /operator/approve.
 func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
+	operatorID, err := auth.GetOperatorID(r)
+	if err != nil || operatorID == "" {
+		writeError(w, http.StatusUnauthorized, "login required")
+		return
+	}
+
 	var req ApproveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -111,10 +117,6 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.TransferID == "" {
 		writeError(w, http.StatusBadRequest, "transfer_id is required")
-		return
-	}
-	if req.OperatorID == "" {
-		writeError(w, http.StatusBadRequest, "operator_id is required")
 		return
 	}
 
@@ -179,7 +181,7 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Record operator action
-	if _, err := h.operatorRepo.RecordAction(req.TransferID, "approve", req.OperatorID, req.Note, req.ContributionTypeOverride); err != nil {
+	if _, err := h.operatorRepo.RecordAction(req.TransferID, "approve", operatorID, req.Note, req.ContributionTypeOverride); err != nil {
 		log.Printf("operator approve: record action: %v", err)
 	}
 
@@ -246,12 +248,17 @@ func (h *OperatorHandler) Actions(w http.ResponseWriter, r *http.Request) {
 // RejectRequest is the request body for POST /operator/reject.
 type RejectRequest struct {
 	TransferID string `json:"transfer_id"`
-	OperatorID string `json:"operator_id"`
 	Note       string `json:"note"`
 }
 
 // Reject handles POST /operator/reject.
 func (h *OperatorHandler) Reject(w http.ResponseWriter, r *http.Request) {
+	operatorID, err := auth.GetOperatorID(r)
+	if err != nil || operatorID == "" {
+		writeError(w, http.StatusUnauthorized, "login required")
+		return
+	}
+
 	var req RejectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -259,10 +266,6 @@ func (h *OperatorHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.TransferID == "" {
 		writeError(w, http.StatusBadRequest, "transfer_id is required")
-		return
-	}
-	if req.OperatorID == "" {
-		writeError(w, http.StatusBadRequest, "operator_id is required")
 		return
 	}
 
@@ -294,7 +297,7 @@ func (h *OperatorHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Record operator action
-	if _, err := h.operatorRepo.RecordAction(req.TransferID, "reject", req.OperatorID, req.Note, ""); err != nil {
+	if _, err := h.operatorRepo.RecordAction(req.TransferID, "reject", operatorID, req.Note, ""); err != nil {
 		log.Printf("operator reject: record action: %v", err)
 	}
 

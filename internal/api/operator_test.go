@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
@@ -29,17 +30,37 @@ func setupOperatorTestMux(t *testing.T) *http.ServeMux {
 	fundingCfg := funding.NewConfig()
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
 	operatorRepo := operator.NewRepository(database)
+	if err := operatorRepo.SeedTestOperators(); err != nil {
+		t.Fatalf("seed operators: %v", err)
+	}
 
 	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
+	authHandler := NewAuthHandler(operatorRepo)
 	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deposits", WithIdempotency(database, depositHandler.Create))
 	mux.HandleFunc("GET /deposits/{id}", depositHandler.Get)
-	mux.HandleFunc("GET /operator/queue", operatorHandler.Queue)
-	mux.HandleFunc("POST /operator/approve", operatorHandler.Approve)
-	mux.HandleFunc("POST /operator/reject", operatorHandler.Reject)
+	mux.HandleFunc("POST /operator/login", authHandler.Login)
+	mux.HandleFunc("GET /operator/queue", auth.RequireOperator(operatorHandler.Queue))
+	mux.HandleFunc("POST /operator/approve", auth.RequireOperator(operatorHandler.Approve))
+	mux.HandleFunc("POST /operator/reject", auth.RequireOperator(operatorHandler.Reject))
 	return mux
+}
+
+// loginAsTestOperator performs login and returns cookies to attach to subsequent requests.
+func loginAsTestOperator(t *testing.T, mux *http.ServeMux) []*http.Cookie {
+	t.Helper()
+	body := map[string]interface{}{"username": "joe", "password": "password"}
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/operator/login", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("login failed: %d %s", rr.Code, rr.Body.String())
+	}
+	return rr.Result().Cookies()
 }
 
 // createFlaggedDeposit submits a MICR fail deposit which lands in Analyzing.
@@ -67,9 +88,13 @@ func createFlaggedDeposit(t *testing.T, mux *http.ServeMux) string {
 
 func TestOperator_FlaggedInQueue(t *testing.T) {
 	mux := setupOperatorTestMux(t)
+	cookies := loginAsTestOperator(t, mux)
 	id := createFlaggedDeposit(t, mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/operator/queue", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
@@ -108,16 +133,19 @@ func TestOperator_FlaggedInQueue(t *testing.T) {
 
 func TestOperator_Approve(t *testing.T) {
 	mux := setupOperatorTestMux(t)
+	cookies := loginAsTestOperator(t, mux)
 	id := createFlaggedDeposit(t, mux)
 
 	body := map[string]interface{}{
 		"transfer_id": id,
-		"operator_id": "op-001",
 		"note":        "looks good",
 	}
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/operator/approve", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
@@ -134,16 +162,19 @@ func TestOperator_Approve(t *testing.T) {
 
 func TestOperator_Reject(t *testing.T) {
 	mux := setupOperatorTestMux(t)
+	cookies := loginAsTestOperator(t, mux)
 	id := createFlaggedDeposit(t, mux)
 
 	body := map[string]interface{}{
 		"transfer_id": id,
-		"operator_id": "op-001",
 		"note":        "suspicious",
 	}
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/operator/reject", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
@@ -181,14 +212,17 @@ func TestOperator_ApproveOverLimit(t *testing.T) {
 	id := tr["id"].(string)
 
 	// Operator approve should fail with 422 (over limit)
+	cookies := loginAsTestOperator(t, mux)
 	approveBody := map[string]interface{}{
 		"transfer_id": id,
-		"operator_id": "op-001",
 		"note":        "attempted approval",
 	}
 	b, _ = json.Marshal(approveBody)
 	req = httptest.NewRequest(http.MethodPost, "/operator/approve", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
@@ -199,14 +233,18 @@ func TestOperator_ApproveOverLimit(t *testing.T) {
 
 func TestOperator_ApproveNotFound(t *testing.T) {
 	mux := setupOperatorTestMux(t)
+	cookies := loginAsTestOperator(t, mux)
 
 	body := map[string]interface{}{
 		"transfer_id": "nonexistent",
-		"operator_id": "op-001",
+		"note":        "",
 	}
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/operator/approve", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 

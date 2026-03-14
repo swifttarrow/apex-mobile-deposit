@@ -59,3 +59,12 @@ CREATE TABLE IF NOT EXISTS check_images (
     image_data TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS operators (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);

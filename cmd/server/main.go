@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/checkstream/checkstream/internal/api"
+	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
@@ -48,6 +49,9 @@ func main() {
 	fundingCfg := funding.NewConfig()
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
 	operatorRepo := operator.NewRepository(database)
+	if err := operatorRepo.SeedTestOperators(); err != nil {
+		log.Printf("warning: seed test operators: %v", err)
+	}
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
 	returnSvc := returnpkg.NewService(database, transferRepo, ledgerSvc)
 
@@ -72,17 +76,24 @@ func main() {
 	mux.HandleFunc("GET /deposits", depositHandler.List)
 	mux.HandleFunc("GET /deposits/{id}", depositHandler.Get)
 
-	// Operator routes
-	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
-	mux.HandleFunc("GET /operator/queue", operatorHandler.Queue)
-	mux.HandleFunc("GET /operator/audit", operatorHandler.Audit)
-	mux.HandleFunc("POST /operator/approve", operatorHandler.Approve)
-	mux.HandleFunc("POST /operator/reject", operatorHandler.Reject)
-	mux.HandleFunc("GET /operator/actions/{transfer_id}", operatorHandler.Actions)
+	// Operator auth routes (no auth required)
+	authHandler := api.NewAuthHandler(operatorRepo)
+	mux.HandleFunc("POST /operator/login", authHandler.Login)
+	mux.HandleFunc("POST /operator/guest", authHandler.Guest)
+	mux.HandleFunc("POST /operator/logout", authHandler.Logout)
+	mux.HandleFunc("GET /operator/me", authHandler.Me)
 
-	// Settlement routes
+	// Operator routes (require login)
+	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
+	mux.HandleFunc("GET /operator/queue", auth.RequireOperator(operatorHandler.Queue))
+	mux.HandleFunc("GET /operator/audit", auth.RequireOperator(operatorHandler.Audit))
+	mux.HandleFunc("POST /operator/approve", auth.RequireOperator(operatorHandler.Approve))
+	mux.HandleFunc("POST /operator/reject", auth.RequireOperator(operatorHandler.Reject))
+	mux.HandleFunc("GET /operator/actions/{transfer_id}", auth.RequireOperator(operatorHandler.Actions))
+
+	// Settlement routes (require operator login)
 	settlementHandler := api.NewSettlementHandler(settlementEngine)
-	mux.HandleFunc("POST /settlement/trigger", settlementHandler.Trigger)
+	mux.HandleFunc("POST /settlement/trigger", auth.RequireOperator(settlementHandler.Trigger))
 
 	// Returns routes
 	returnsHandler := api.NewReturnsHandler(returnSvc)
@@ -126,14 +137,20 @@ func main() {
 	operatorRoot, _ := fs.Sub(operatorFS, "web/operator")
 	operatorPageHandler := func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/" || path == "" {
-			path = "/operator/index.html"
-		} else if path == "/operator" || path == "/operator/" {
-			path = "/operator/index.html"
-		}
-		name := strings.TrimPrefix(path, "/operator/")
-		if name == "" {
+		var name string
+		switch {
+		case path == "/" || path == "" || path == "/operator" || path == "/operator/":
 			name = "index.html"
+		case path == "/operator/login" || path == "/login":
+			name = "login.html"
+		default:
+			name = strings.TrimPrefix(path, "/operator/")
+			if name == path {
+				name = strings.TrimPrefix(path, "/")
+			}
+			if name == "" {
+				name = "index.html"
+			}
 		}
 		b, err := fs.ReadFile(operatorRoot, name)
 		if err != nil {
@@ -153,6 +170,8 @@ func main() {
 	mux.HandleFunc("GET /", operatorPageHandler)
 	mux.HandleFunc("GET /operator", operatorPageHandler)
 	mux.HandleFunc("GET /operator/", operatorPageHandler)
+	mux.HandleFunc("GET /operator/login", operatorPageHandler)
+	mux.HandleFunc("GET /login", operatorPageHandler)
 
 	// Mobile UI (embedded)
 	mobileRoot, _ := fs.Sub(mobileFS, "web/mobile")

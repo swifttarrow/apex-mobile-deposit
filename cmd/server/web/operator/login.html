@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CheckDepot — Operator Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #F2F3F0;
+      --card: #FFFFFF;
+      --primary: #FF8400;
+      --primary-foreground: #111111;
+      --foreground: #111111;
+      --muted-foreground: #666666;
+      --border: #CBCCC9;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Geist', system-ui, sans-serif;
+      --radius-m: 16px;
+      --radius-pill: 999px;
+      --destructive: #D93C15;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--background);
+      color: var(--foreground);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      background: var(--card);
+      border-radius: var(--radius-m);
+      padding: 40px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+    .login-logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      padding: 8px 14px;
+      border-radius: var(--radius-pill);
+      font-size: 14px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      letter-spacing: -0.02em;
+      margin-bottom: 32px;
+    }
+    .login-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .login-subtitle { font-size: 13px; color: var(--muted-foreground); margin-bottom: 24px; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--foreground);
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: var(--font-sans);
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(255,132,0,0.15);
+    }
+    .btn-login {
+      width: 100%;
+      padding: 14px 24px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      border-radius: var(--radius-pill);
+      font-size: 15px;
+      font-weight: 700;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-login:hover { opacity: 0.9; }
+    .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-guest {
+      width: 100%;
+      padding: 12px 24px;
+      background: transparent;
+      color: var(--muted-foreground);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-pill);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    .btn-guest:hover { background: var(--background); color: var(--foreground); }
+    .btn-guest:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error-msg {
+      background: #E5DCDA;
+      color: #8C1C00;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .error-msg.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-logo">CHECKDEPOT</div>
+    <h1 class="login-title">Operator Login</h1>
+    <p class="login-subtitle">Sign in to review flagged deposits</p>
+
+    <div id="errorMsg" class="error-msg"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username" autofocus>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn-login" id="loginBtn">Sign in</button>
+      <button type="button" class="btn-guest" id="guestBtn">Login as Guest</button>
+    </form>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    function apiBase() {
+      return location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
+    }
+
+    $('loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = $('loginBtn');
+      const err = $('errorMsg');
+      err.classList.remove('show');
+      err.textContent = '';
+      btn.disabled = true;
+
+      try {
+        const r = await fetch(`${apiBase()}/operator/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: $('username').value.trim(),
+            password: $('password').value,
+          }),
+          credentials: 'include',
+        });
+        const data = await r.json().catch(() => ({}));
+
+        if (r.ok) {
+          window.location.href = '/operator';
+        } else {
+          err.textContent = data.error || data.message || 'Login failed';
+          err.classList.add('show');
+        }
+      } catch (e) {
+        err.textContent = 'Network error: ' + e.message;
+        err.classList.add('show');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    $('guestBtn').onclick = async () => {
+      const btn = $('guestBtn');
+      const err = $('errorMsg');
+      err.classList.remove('show');
+      err.textContent = '';
+      btn.disabled = true;
+
+      try {
+        const r = await fetch(`${apiBase()}/operator/guest`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+          credentials: 'include',
+        });
+        const data = await r.json().catch(() => ({}));
+
+        if (r.ok) {
+          window.location.href = '/operator';
+        } else {
+          err.textContent = data.error || data.message || 'Guest login failed';
+          err.classList.add('show');
+        }
+      } catch (e) {
+        err.textContent = 'Network error: ' + e.message;
+        err.classList.add('show');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

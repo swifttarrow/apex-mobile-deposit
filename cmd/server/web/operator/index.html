@@ -258,8 +258,9 @@
   </div>
 
   <div class="sidebar-footer">
-    <div class="sidebar-user">Joe Doe</div>
-    <div class="sidebar-user-email">joe@checkdepot.com</div>
+    <div class="sidebar-user" id="sidebarUserName">—</div>
+    <div class="sidebar-user-email" id="sidebarUserEmail">—</div>
+    <button class="nav-item" id="logoutBtn" style="margin-top:8px;width:100%;cursor:pointer">Log out</button>
   </div>
 </aside>
 
@@ -508,6 +509,7 @@
 const $ = id => document.getElementById(id);
 
 // ── State ──
+let currentOperator = null;
 let allTransfers = [];
 let filteredTransfers = [];
 let selectedTransfer = null;
@@ -518,6 +520,34 @@ let activeFilter = 'all';
 function apiBase() {
   return location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
 }
+function fetchOpts(opts = {}) {
+  return { credentials: 'include', ...opts };
+}
+
+// ── Auth ──
+async function checkAuth() {
+  try {
+    const r = await fetch(`${apiBase()}/operator/me`, fetchOpts());
+    if (r.status === 401) {
+      window.location.href = '/operator/login';
+      return false;
+    }
+    if (!r.ok) throw new Error('Auth check failed');
+    currentOperator = await r.json();
+    $('sidebarUserName').textContent = currentOperator.display_name || currentOperator.username || '—';
+    $('sidebarUserEmail').textContent = currentOperator.email || '—';
+    return true;
+  } catch (e) {
+    window.location.href = '/operator/login';
+    return false;
+  }
+}
+$('logoutBtn').onclick = async () => {
+  try {
+    await fetch(`${apiBase()}/operator/logout`, { method: 'POST', ...fetchOpts() });
+  } catch (_) {}
+  window.location.href = '/operator/login';
+};
 function fmt(n) { return typeof n === 'number' ? '$' + n.toFixed(2) : (n || '—'); }
 function fmtPct(n) { return typeof n === 'number' ? (n * 100).toFixed(1) + '%' : '—'; }
 function fmtDate(s) {
@@ -552,7 +582,7 @@ function showView(id) {
 // ── Load Queue ──
 async function loadQueue() {
   try {
-    const r = await fetch(`${apiBase()}/operator/queue`);
+    const r = await fetch(`${apiBase()}/operator/queue`, fetchOpts());
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     allTransfers = data.transfers || [];
@@ -714,7 +744,7 @@ function openDetail(t) {
 async function loadAudit(transferId) {
   const el = $('auditList');
   try {
-    const r = await fetch(`${apiBase()}/operator/actions/${transferId}`);
+    const r = await fetch(`${apiBase()}/operator/actions/${transferId}`, fetchOpts());
     if (!r.ok) throw new Error();
     const data = await r.json();
     const actions = data.actions || [];
@@ -744,9 +774,12 @@ async function doAction(action) {
   fb.textContent = 'Processing…';
   fb.style.display = 'block';
   try {
-    const body = { transfer_id: selectedTransfer.id, operator_id: 'operator-1', note: '' };
+    const body = { transfer_id: selectedTransfer.id, note: '' };
     const r = await fetch(`${apiBase()}/operator/${action}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      ...fetchOpts(),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
     const j = await r.json();
     if (r.ok) {
@@ -805,7 +838,7 @@ $('triggerSettlementBtn').onclick = async () => {
   el.textContent = 'Triggering…';
   el.style.display = 'block';
   try {
-    const r = await fetch(`${apiBase()}/settlement/trigger`, { method: 'POST' });
+    const r = await fetch(`${apiBase()}/settlement/trigger`, { method: 'POST', ...fetchOpts() });
     const j = await r.json();
     if (r.ok) {
       el.className = 'action-feedback ok';
@@ -827,8 +860,11 @@ function auditActionDisplay(a) {
   const actionClass = isAuto ? 'approve' : a.action;
   return { label, sub, actionClass };
 }
+const OPERATOR_NAMES = { 'op-1':'Joe Doe', 'op-2':'Jane Smith', 'op-3':'Bob Wilson', 'op-4':'Alice Chen', 'op-5':'Charlie Davis' };
 function auditOperatorDisplay(operatorId) {
-  return (operatorId === 'system' || !operatorId) ? 'Auto' : (operatorId || '—');
+  if (operatorId === 'system' || !operatorId) return 'Auto';
+  if (operatorId && operatorId.startsWith('guest-')) return 'Guest';
+  return OPERATOR_NAMES[operatorId] || operatorId || '—';
 }
 async function loadAuditLog() {
   const el = $('auditLogList');
@@ -840,7 +876,7 @@ async function loadAuditLog() {
     const params = new URLSearchParams();
     if (actionFilter && actionFilter !== 'all') params.set('action', actionFilter);
     if (operatorFilter) params.set('operator_id', operatorFilter);
-    const r = await fetch(`${apiBase()}/operator/audit?${params}`);
+    const r = await fetch(`${apiBase()}/operator/audit?${params}`, fetchOpts());
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     const actions = data.actions || [];
@@ -875,8 +911,11 @@ async function loadAuditLog() {
 }
 
 // ── Init ──
-loadQueue();
-setInterval(() => loadQueue(), 10000);
+(async () => {
+  if (!(await checkAuth())) return;
+  loadQueue();
+  setInterval(() => loadQueue(), 10000);
+})();
 </script>
 </body>
 </html>
