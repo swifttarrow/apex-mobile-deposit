@@ -67,7 +67,7 @@ func main() {
 	mux.HandleFunc("POST /vendor/validate", vendorStub.HandleValidate)
 
 	// Register deposit routes
-	depositHandler := api.NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, database)
+	depositHandler := api.NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
 	mux.HandleFunc("POST /deposits", api.WithIdempotency(database, depositHandler.Create))
 	mux.HandleFunc("GET /deposits", depositHandler.List)
 	mux.HandleFunc("GET /deposits/{id}", depositHandler.Get)
@@ -75,6 +75,7 @@ func main() {
 	// Operator routes
 	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
 	mux.HandleFunc("GET /operator/queue", operatorHandler.Queue)
+	mux.HandleFunc("GET /operator/audit", operatorHandler.Audit)
 	mux.HandleFunc("POST /operator/approve", operatorHandler.Approve)
 	mux.HandleFunc("POST /operator/reject", operatorHandler.Reject)
 	mux.HandleFunc("GET /operator/actions/{transfer_id}", operatorHandler.Actions)

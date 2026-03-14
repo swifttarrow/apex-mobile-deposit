@@ -11,6 +11,7 @@ import (
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
+	"github.com/checkstream/checkstream/internal/operator"
 	"github.com/checkstream/checkstream/internal/transfer"
 	"github.com/checkstream/checkstream/internal/vendor"
 )
@@ -28,8 +29,9 @@ func setupTestDepositHandler(t *testing.T) (*DepositHandler, *http.ServeMux) {
 	ledgerSvc := ledger.NewService(database)
 	fundingCfg := funding.NewConfig()
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
+	operatorRepo := operator.NewRepository(database)
 
-	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, database)
+	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deposits", WithIdempotency(database, handler.Create))
@@ -240,7 +242,8 @@ func BenchmarkDeposit_CleanPass(b *testing.B) {
 	ledgerSvc := ledger.NewService(database)
 	fundingCfg := funding.NewConfig()
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
-	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, database)
+	operatorRepo := operator.NewRepository(database)
+	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deposits", WithIdempotency(database, handler.Create))

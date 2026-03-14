@@ -10,6 +10,7 @@ import (
 
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
+	"github.com/checkstream/checkstream/internal/operator"
 	"github.com/checkstream/checkstream/internal/transfer"
 	"github.com/checkstream/checkstream/internal/vendor"
 )
@@ -30,6 +31,7 @@ type DepositHandler struct {
 	ledgerSvc    *ledger.Service
 	fundingSvc   *funding.Service
 	fundingCfg   *funding.Config
+	operatorRepo *operator.Repository
 	db           *sql.DB
 }
 
@@ -40,6 +42,7 @@ func NewDepositHandler(
 	ledgerSvc *ledger.Service,
 	fundingSvc *funding.Service,
 	fundingCfg *funding.Config,
+	operatorRepo *operator.Repository,
 	db *sql.DB,
 ) *DepositHandler {
 	return &DepositHandler{
@@ -48,6 +51,7 @@ func NewDepositHandler(
 		ledgerSvc:    ledgerSvc,
 		fundingSvc:   fundingSvc,
 		fundingCfg:   fundingCfg,
+		operatorRepo: operatorRepo,
 		db:           db,
 	}
 }
@@ -281,6 +285,13 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		log.Printf("deposit: commit tx: %v", err)
 		writeError(w, http.StatusInternalServerError, "transaction commit error")
 		return
+	}
+
+	// Record audit log entry for auto-approved deposits (mobile or API)
+	if h.operatorRepo != nil {
+		if _, err := h.operatorRepo.RecordAction(t.ID, "auto_approve", "system", "passed validation, no operator review", ""); err != nil {
+			log.Printf("deposit: record audit action: %v", err)
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, t)

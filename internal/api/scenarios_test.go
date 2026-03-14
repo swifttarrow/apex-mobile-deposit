@@ -35,7 +35,7 @@ func setupFullMux(t *testing.T) *http.ServeMux {
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
 	returnSvc := returnpkg.NewService(database, transferRepo, ledgerSvc)
 
-	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, database)
+	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
 	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
 	settlementHandler := NewSettlementHandler(settlementEngine)
 	returnsHandler := NewReturnsHandler(returnSvc)

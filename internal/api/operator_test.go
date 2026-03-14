@@ -30,7 +30,7 @@ func setupOperatorTestMux(t *testing.T) *http.ServeMux {
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
 	operatorRepo := operator.NewRepository(database)
 
-	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, database)
+	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
 	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
 
 	mux := http.NewServeMux()
