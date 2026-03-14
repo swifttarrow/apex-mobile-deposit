@@ -170,6 +170,18 @@
       color: var(--foreground);
       outline: none;
     }
+    .amount-input-wrap.invalid {
+      border-color: var(--destructive);
+    }
+    .field-error {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--destructive);
+      display: none;
+    }
+    .field-error.visible {
+      display: block;
+    }
     .account-select {
       width: 100%;
       height: 48px;
@@ -395,10 +407,11 @@
         </div>
 
         <div class="field-label">Deposit Amount</div>
-        <div class="amount-input-wrap">
+        <div class="amount-input-wrap" id="amountInputWrap">
           <span class="amount-prefix">$</span>
-          <input class="amount-input" type="number" id="amountInput" value="0.00" step="0.01" min="0.01">
+          <input class="amount-input" type="number" id="amountInput" value="" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00">
         </div>
+        <div class="field-error" id="amountError">Enter an amount greater than 0.</div>
 
         <div class="field-label">Account</div>
         <select class="account-select" id="accountSelect">
@@ -615,17 +628,60 @@ $('frontBox').onclick = () => { setCaptured($('frontBox'), 'front'); state.front
 $('backBox').onclick  = () => { setCaptured($('backBox'), 'back');  state.backCaptured  = true; updateSubmitBtn(); };
 
 function updateSubmitBtn() {
-  $('submitBtn').disabled = !(state.frontCaptured && state.backCaptured);
+  $('submitBtn').disabled = !(state.frontCaptured && state.backCaptured && isAmountValid());
 }
 
+function getDepositAmount() {
+  const amount = Number.parseFloat($('amountInput').value);
+  return Number.isFinite(amount) ? amount : NaN;
+}
+
+function isAmountValid() {
+  const amount = getDepositAmount();
+  return Number.isFinite(amount) && amount > 0;
+}
+
+function updateAmountValidation(showError = false) {
+  const isValid = isAmountValid();
+  const amountWrap = $('amountInputWrap');
+  const amountError = $('amountError');
+  const hasValue = $('amountInput').value.trim().length > 0;
+  const shouldShowError = showError && (!hasValue || !isValid);
+
+  amountWrap.classList.toggle('invalid', shouldShowError);
+  amountError.classList.toggle('visible', shouldShowError);
+
+  updateSubmitBtn();
+}
+
+$('amountInput').addEventListener('keydown', (e) => {
+  // Prevent negative/exponent notation in numeric input.
+  if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+    e.preventDefault();
+  }
+});
+
+$('amountInput').addEventListener('input', () => {
+  updateAmountValidation(false);
+});
+
+$('amountInput').addEventListener('blur', () => {
+  updateAmountValidation(true);
+});
+
 $('submitBtn').onclick = async () => {
+  if (!isAmountValid()) {
+    updateAmountValidation(true);
+    return;
+  }
+
   const btn = $('submitBtn');
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
   try {
     const accountId = $('accountSelect').value;
-    const amount = parseFloat($('amountInput').value) || 0;
+    const amount = getDepositAmount();
     const scenario = state.selectedScenario;
 
     const frontUrl = checkImgUrl(state.selectedCheck, 'front');
@@ -823,6 +879,7 @@ $('avatarInput').onchange = (e) => {
 // ── Init ──
 state.apiBase = location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
 loadProfile();
+updateAmountValidation(false);
 </script>
 </body>
 </html>
