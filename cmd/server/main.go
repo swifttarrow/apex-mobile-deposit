@@ -58,7 +58,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  "ok",
-			"service": "checkstream",
+			"service": "checkdepot",
 			"version": "1.0.0",
 		})
 	})
@@ -92,18 +92,18 @@ func main() {
 	mux.HandleFunc("GET /ledger", ledgerHandler.List)
 	mux.HandleFunc("GET /accounts/{id}/balance", ledgerHandler.Balance)
 
-	// Scenario showcase UI (embedded)
-	scenarioRoot, _ := fs.Sub(scenarioFS, "web/scenarios")
-	scenarioHandler := func(w http.ResponseWriter, r *http.Request) {
+	// Sandbox UI (embedded) — scenario showcase at /sandbox
+	sandboxRoot, _ := fs.Sub(scenarioFS, "web/scenarios")
+	sandboxHandler := func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/scenarios" || path == "/scenarios/" {
-			path = "/scenarios/index.html"
+		if path == "/sandbox" || path == "/sandbox/" {
+			path = "/sandbox/index.html"
 		}
-		name := strings.TrimPrefix(path, "/scenarios/")
+		name := strings.TrimPrefix(path, "/sandbox/")
 		if name == "" {
 			name = "index.html"
 		}
-		b, err := fs.ReadFile(scenarioRoot, name)
+		b, err := fs.ReadFile(sandboxRoot, name)
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
@@ -118,14 +118,16 @@ func main() {
 		}
 		w.Write(b)
 	}
-	mux.HandleFunc("GET /scenarios", scenarioHandler)
-	mux.HandleFunc("GET /scenarios/", scenarioHandler)
+	mux.HandleFunc("GET /sandbox", sandboxHandler)
+	mux.HandleFunc("GET /sandbox/", sandboxHandler)
 
-	// Operator UI (embedded)
+	// Operator UI (embedded) — root page and /operator
 	operatorRoot, _ := fs.Sub(operatorFS, "web/operator")
 	operatorPageHandler := func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/operator" || path == "/operator/" {
+		if path == "/" || path == "" {
+			path = "/operator/index.html"
+		} else if path == "/operator" || path == "/operator/" {
 			path = "/operator/index.html"
 		}
 		name := strings.TrimPrefix(path, "/operator/")
@@ -147,6 +149,7 @@ func main() {
 		}
 		w.Write(b)
 	}
+	mux.HandleFunc("GET /", operatorPageHandler)
 	mux.HandleFunc("GET /operator", operatorPageHandler)
 	mux.HandleFunc("GET /operator/", operatorPageHandler)
 
@@ -188,7 +191,7 @@ func main() {
 		port = "8080"
 	}
 	addr := ":" + port
-	log.Printf("Checkstream server listening on %s", addr)
+	log.Printf("Checkdepot server listening on %s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("server error: %v", err)
 	}

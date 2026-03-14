@@ -1,4 +1,4 @@
-# Checkstream Mobile Check Deposit
+# Checkdepot Mobile Check Deposit
 
 A Go backend service implementing mobile check deposit with state machine-based transfer lifecycle, vendor check analysis, operator review workflow, and settlement processing.
 
@@ -56,7 +56,7 @@ The server starts on `:8080`.
 
 ### Scenario Showcase UI
 
-Visit **http://localhost:8080/scenarios/** to see a visual reference of all user story scenarios. The UI shows:
+Visit **http://localhost:8080/** for the operator dashboard. Visit **http://localhost:8080/sandbox/** to see a visual reference of all user story scenarios. The UI shows:
 - **Case** — Scenario name and ID (e.g. US-1.1, US-2.1)
 - **Flow** — Step-by-step state transitions and API calls
 - **Pass/Fail** — Run scenarios against the live API and see results with full response bodies

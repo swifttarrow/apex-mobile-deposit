@@ -4,7 +4,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 
 echo "========================================"
-echo "Checkstream Mobile Check Deposit Demo"
+echo "Checkdepot Mobile Check Deposit Demo"
 echo "========================================"
 echo ""
 
