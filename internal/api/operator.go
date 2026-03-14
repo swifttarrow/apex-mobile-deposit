@@ -186,6 +186,44 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, t)
 }
 
+// Audit handles GET /operator/audit.
+// Query params: limit, action (all|approved|approve|auto_approve|reject), operator_id
+func (h *OperatorHandler) Audit(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := 50
+	if l := q.Get("limit"); l != "" {
+		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 200 {
+			limit = n
+		}
+	}
+	actionFilter := q.Get("action")
+	operatorFilter := q.Get("operator_id")
+
+	actions, err := h.operatorRepo.ListRecentActions(limit, actionFilter, operatorFilter)
+	if err != nil {
+		log.Printf("operator audit: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to list audit log")
+		return
+	}
+	if actions == nil {
+		actions = []*operator.Action{}
+	}
+
+	// Include distinct operators for filter dropdown (only when not filtering by operator)
+	operators := []string{}
+	if operatorFilter == "" {
+		ops, err := h.operatorRepo.ListAuditOperators()
+		if err == nil {
+			operators = ops
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"actions":   actions,
+		"operators": operators,
+	})
+}
+
 // Actions handles GET /operator/actions/{transfer_id}.
 func (h *OperatorHandler) Actions(w http.ResponseWriter, r *http.Request) {
 	transferID := r.PathValue("transfer_id")

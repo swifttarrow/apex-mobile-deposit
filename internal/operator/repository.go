@@ -118,6 +118,73 @@ func (r *Repository) GetTransfer(id string) (*transfer.Transfer, error) {
 	return t, nil
 }
 
+// ListRecentActions returns the most recent operator actions across all transfers, ordered by created_at DESC.
+// actionFilter: "" or "all" = no filter; "approve" = manual approve only; "auto_approve"; "approved" = both approve and auto_approve; "reject"
+// operatorFilter: "" = no filter; else filter by operator_id
+func (r *Repository) ListRecentActions(limit int, actionFilter, operatorFilter string) ([]*Action, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+		SELECT id, transfer_id, action, operator_id,
+		       COALESCE(note,''), COALESCE(contribution_type_override,''), created_at
+		FROM operator_actions`
+	args := []interface{}{}
+	if actionFilter != "" && actionFilter != "all" {
+		switch actionFilter {
+		case "approved":
+			query += " WHERE action IN ('approve', 'auto_approve')"
+		case "approve", "auto_approve", "reject":
+			query += " WHERE action = ?"
+			args = append(args, actionFilter)
+		}
+	}
+	if operatorFilter != "" {
+		if len(args) > 0 {
+			query += " AND operator_id = ?"
+		} else {
+			query += " WHERE operator_id = ?"
+		}
+		args = append(args, operatorFilter)
+	}
+	query += " ORDER BY created_at DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list recent actions: %w", err)
+	}
+	defer rows.Close()
+
+	var actions []*Action
+	for rows.Next() {
+		a := &Action{}
+		if err := rows.Scan(&a.ID, &a.TransferID, &a.Action, &a.OperatorID, &a.Note, &a.ContributionTypeOverride, &a.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan action: %w", err)
+		}
+		actions = append(actions, a)
+	}
+	return actions, rows.Err()
+}
+
+// ListAuditOperators returns distinct operator_id values for filter dropdown.
+func (r *Repository) ListAuditOperators() ([]string, error) {
+	rows, err := r.db.Query(`SELECT DISTINCT operator_id FROM operator_actions ORDER BY operator_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list operators: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan operator: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // ListActions returns all operator actions for a transfer, ordered by created_at.
 func (r *Repository) ListActions(transferID string) ([]*Action, error) {
 	rows, err := r.db.Query(`

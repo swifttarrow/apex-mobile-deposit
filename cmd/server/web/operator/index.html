@@ -188,10 +188,15 @@
     .risk-alert-body { font-size: 12px; color: var(--color-warning-foreground); margin-top: 4px; }
     .audit-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
     .audit-item:last-child { border-bottom: none; }
-    .audit-action { font-weight: 700; text-transform: capitalize; min-width: 60px; }
+    .audit-action-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 70px; }
+    .audit-action { font-weight: 700; text-transform: capitalize; }
     .audit-action.approve { color: var(--color-success-foreground); }
     .audit-action.reject  { color: var(--color-error-foreground); }
+    .audit-action-sub { font-size: 11px; font-weight: 500; color: var(--muted-foreground); text-transform: lowercase; }
     .audit-meta { color: var(--muted-foreground); font-size: 12px; }
+    .audit-filter-chip { font-size: 12px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); cursor: pointer; }
+    .audit-filter-chip:hover { background: var(--secondary); }
+    .audit-filter-chip.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
     .action-feedback { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: none; }
     .action-feedback.ok  { background: var(--color-success); color: var(--color-success-foreground); display: block; }
     .action-feedback.err { background: var(--color-error); color: var(--color-error-foreground); display: block; }
@@ -236,14 +241,14 @@
 
   <div class="sidebar-section">
     <div class="sidebar-section-label">Management</div>
-    <button class="nav-item">
+    <button class="nav-item" id="navAccounts">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
       Accounts
     </button>
-    <button class="nav-item">
+    <button class="nav-item" id="navSettings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/>
         <path d="M19.07 4.93a10 10 0 0 1 1.41 13.5M4.93 4.93a10 10 0 0 0-1.41 13.5"/>
@@ -425,6 +430,78 @@
     </div>
   </div>
 
+  <!-- ── Settlement View ── -->
+  <div class="view" id="viewSettlement">
+    <div class="detail-inner">
+      <div class="queue-header">
+        <div class="queue-title">Settlement</div>
+        <div class="queue-subtitle">Trigger end-of-day settlement batch</div>
+      </div>
+      <div class="d-card" style="margin:24px 28px;max-width:480px">
+        <div class="d-card-title">Settlement Trigger</div>
+        <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px">Generates a settlement file for all FundsPosted transfers and writes it to disk.</p>
+        <button class="action-btn btn-approve" id="triggerSettlementBtn">Trigger Settlement</button>
+        <div id="settlementResult" class="action-feedback" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Audit Log View ── -->
+  <div class="view" id="viewAuditLog">
+    <div class="detail-inner">
+      <div class="queue-header">
+        <div class="queue-title">Audit Log</div>
+        <div class="queue-subtitle">Recent operator actions across all deposits</div>
+      </div>
+      <div class="d-card" style="margin:24px 28px">
+        <div class="d-card-title">Recent Actions</div>
+        <div class="audit-filters" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center">
+          <span style="font-size:12px;color:var(--muted-foreground);margin-right:4px">Action:</span>
+          <div class="filter-chips" style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="audit-filter-chip active" data-action="all">All</button>
+            <button class="audit-filter-chip" data-action="approved">Approved</button>
+            <button class="audit-filter-chip" data-action="approve">Manual</button>
+            <button class="audit-filter-chip" data-action="auto_approve">Auto</button>
+            <button class="audit-filter-chip" data-action="reject">Rejected</button>
+          </div>
+          <span style="font-size:12px;color:var(--muted-foreground);margin-left:12px;margin-right:4px">Operator:</span>
+          <select id="auditOperatorFilter" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--foreground)">
+            <option value="">All operators</option>
+          </select>
+        </div>
+        <div id="auditLogList"><div style="color:var(--muted-foreground);font-size:13px">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Accounts View ── -->
+  <div class="view" id="viewAccounts">
+    <div class="detail-inner">
+      <div class="queue-header">
+        <div class="queue-title">Accounts</div>
+        <div class="queue-subtitle">Manage investor accounts and omnibus mappings</div>
+      </div>
+      <div class="d-card" style="margin:24px 28px;max-width:480px">
+        <div class="d-card-title">Accounts</div>
+        <p style="font-size:13px;color:var(--muted-foreground)">Account management coming soon.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings View ── -->
+  <div class="view" id="viewSettings">
+    <div class="detail-inner">
+      <div class="queue-header">
+        <div class="queue-title">Settings</div>
+        <div class="queue-subtitle">Operator preferences and configuration</div>
+      </div>
+      <div class="d-card" style="margin:24px 28px;max-width:480px">
+        <div class="d-card-title">Settings</div>
+        <p style="font-size:13px;color:var(--muted-foreground)">Settings configuration coming soon.</p>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /main -->
 
 <script>
@@ -492,9 +569,9 @@ function updateStats() {
     $('statUrgentBadge').style.display = 'inline';
     $('statUrgentBadge').textContent = `Urgent ${Math.min(allTransfers.length, 3)}`;
   }
-  // Approved/Rejected today: approximate from transfers not in Analyzing
-  $('statApproved').textContent = '—';
-  $('statRejected').textContent = '—';
+  // Approved/Rejected today: show 0 when no data (queue only returns flagged transfers)
+  $('statApproved').textContent = '0';
+  $('statRejected').textContent = '0';
 }
 
 function applyFilter(filter) {
@@ -642,11 +719,17 @@ async function loadAudit(transferId) {
     const data = await r.json();
     const actions = data.actions || [];
     if (!actions.length) { el.innerHTML = '<div style="color:var(--muted-foreground);font-size:13px">No actions yet</div>'; return; }
-    el.innerHTML = actions.map(a => `
-      <div class="audit-item">
-        <span class="audit-action ${a.action}">${a.action}</span>
-        <div><div>${a.operator_id}</div><div class="audit-meta">${fmtDate(a.created_at)}${a.note ? ' · ' + a.note : ''}</div></div>
-      </div>`).join('');
+    el.innerHTML = actions.map(a => {
+      const { label, sub, actionClass } = auditActionDisplay(a);
+      const operatorDisplay = auditOperatorDisplay(a.operator_id);
+      return `<div class="audit-item">
+        <div class="audit-action-wrap">
+          <span class="audit-action ${actionClass}">${label}</span>
+          ${sub ? `<span class="audit-action-sub">${sub}</span>` : ''}
+        </div>
+        <div><div>${operatorDisplay}</div><div class="audit-meta">${fmtDate(a.created_at)}${a.note ? ' · ' + a.note : ''}</div></div>
+      </div>`;
+    }).join('');
   } catch(e) {
     el.innerHTML = '<div style="color:var(--destructive);font-size:13px">Could not load audit</div>';
   }
@@ -691,9 +774,105 @@ $('detailRejectBtn').onclick  = () => doAction('reject');
 $('breadcrumbBack').onclick   = () => showView('viewQueue');
 
 // sidebar nav
-$('navReviewQueue').onclick = () => { showView('viewQueue'); document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); $('navReviewQueue').classList.add('active'); };
-$('navSettlement').onclick  = () => { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); $('navSettlement').classList.add('active'); };
-$('navAuditLog').onclick    = () => { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); $('navAuditLog').classList.add('active'); };
+function setActiveNav(id) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = $(id);
+  if (el) el.classList.add('active');
+}
+$('navReviewQueue').onclick = () => { showView('viewQueue'); setActiveNav('navReviewQueue'); };
+$('navSettlement').onclick  = () => { showView('viewSettlement'); setActiveNav('navSettlement'); loadSettlementView(); };
+$('navAuditLog').onclick    = () => { showView('viewAuditLog'); setActiveNav('navAuditLog'); loadAuditLog(); };
+document.querySelectorAll('.audit-filter-chip').forEach(chip => {
+  chip.onclick = () => {
+    document.querySelectorAll('.audit-filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    loadAuditLog();
+  };
+});
+const auditOpFilter = $('auditOperatorFilter');
+if (auditOpFilter) auditOpFilter.onchange = loadAuditLog;
+$('navAccounts').onclick    = () => { showView('viewAccounts'); setActiveNav('navAccounts'); };
+$('navSettings').onclick    = () => { showView('viewSettings'); setActiveNav('navSettings'); };
+
+async function loadSettlementView() {
+  $('settlementResult').className = 'action-feedback';
+  $('settlementResult').style.display = 'none';
+  $('settlementResult').textContent = '';
+}
+$('triggerSettlementBtn').onclick = async () => {
+  const el = $('settlementResult');
+  el.className = 'action-feedback';
+  el.textContent = 'Triggering…';
+  el.style.display = 'block';
+  try {
+    const r = await fetch(`${apiBase()}/settlement/trigger`, { method: 'POST' });
+    const j = await r.json();
+    if (r.ok) {
+      el.className = 'action-feedback ok';
+      el.textContent = `Settlement triggered. Batch: ${j.batch_id || '—'}, ${j.total_count ?? 0} transfers, $${(j.total_amount ?? 0).toFixed(2)}`;
+    } else {
+      el.className = 'action-feedback err';
+      el.textContent = j.error || `Error ${r.status}`;
+    }
+  } catch (e) {
+    el.className = 'action-feedback err';
+    el.textContent = 'Error: ' + e.message;
+  }
+};
+
+function auditActionDisplay(a) {
+  const isAuto = a.action === 'auto_approve';
+  const label = isAuto ? 'Approve' : (a.action || '').replace(/_/g, ' ');
+  const sub = isAuto ? 'auto' : null;
+  const actionClass = isAuto ? 'approve' : a.action;
+  return { label, sub, actionClass };
+}
+function auditOperatorDisplay(operatorId) {
+  return (operatorId === 'system' || !operatorId) ? 'Auto' : (operatorId || '—');
+}
+async function loadAuditLog() {
+  const el = $('auditLogList');
+  const actionChip = document.querySelector('.audit-filter-chip.active');
+  const actionFilter = actionChip ? actionChip.dataset.action : 'all';
+  const operatorFilter = ($('auditOperatorFilter') && $('auditOperatorFilter').value) || '';
+  el.innerHTML = '<div style="color:var(--muted-foreground);font-size:13px">Loading…</div>';
+  try {
+    const params = new URLSearchParams();
+    if (actionFilter && actionFilter !== 'all') params.set('action', actionFilter);
+    if (operatorFilter) params.set('operator_id', operatorFilter);
+    const r = await fetch(`${apiBase()}/operator/audit?${params}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const actions = data.actions || [];
+    const operators = data.operators || [];
+    const opSelect = $('auditOperatorFilter');
+    if (opSelect) {
+      const current = opSelect.value;
+      opSelect.innerHTML = '<option value="">All operators</option>' +
+        operators.map(o => `<option value="${o}" ${o === current ? 'selected' : ''}>${auditOperatorDisplay(o)}</option>`).join('');
+    }
+    if (!actions.length) {
+      el.innerHTML = '<div style="color:var(--muted-foreground);font-size:13px">No operator actions yet</div>';
+      return;
+    }
+    el.innerHTML = actions.map(a => {
+      const { label, sub, actionClass } = auditActionDisplay(a);
+      const operatorDisplay = auditOperatorDisplay(a.operator_id);
+      return `<div class="audit-item">
+        <div class="audit-action-wrap">
+          <span class="audit-action ${actionClass}">${label}</span>
+          ${sub ? `<span class="audit-action-sub">${sub}</span>` : ''}
+        </div>
+        <div>
+          <div>DEP-${(a.transfer_id || '').slice(0,8).toUpperCase()} · ${operatorDisplay}</div>
+          <div class="audit-meta">${fmtDate(a.created_at)}${a.note ? ' · ' + a.note : ''}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--destructive);font-size:13px">Could not load audit log</div>';
+  }
+}
 
 // ── Init ──
 loadQueue();
