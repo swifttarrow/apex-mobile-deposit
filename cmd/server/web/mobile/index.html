@@ -151,6 +151,24 @@
       background: var(--color-success-foreground); color: #fff;
       font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill);
     }
+    .checks-layout {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .checks-column {
+      flex: 1;
+      min-width: 0;
+    }
+    .scenario-side {
+      width: 128px;
+      flex-shrink: 0;
+      margin-top: 20px;
+    }
+    .scenario-side .field-label {
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
     .amount-input-wrap {
       background: var(--card);
       border: 1.5px solid var(--border);
@@ -215,20 +233,23 @@
 
     /* scenario selector */
     .scenario-row {
-      display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px;
-      scrollbar-width: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0;
     }
-    .scenario-row::-webkit-scrollbar { display: none; }
     .scenario-chip {
-      flex-shrink: 0;
-      padding: 6px 14px;
+      width: 100%;
+      padding: 8px 10px;
       border-radius: var(--radius-pill);
       border: 1.5px solid var(--border);
       background: var(--card);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       cursor: pointer;
-      white-space: nowrap;
+      white-space: normal;
+      text-align: center;
+      line-height: 1.2;
       color: var(--muted-foreground);
     }
     .scenario-chip.selected {
@@ -384,26 +405,42 @@
         <div class="page-title">Deposit Check</div>
       </div>
       <div class="capture-content">
-        <div class="field-label">Front of Check</div>
-        <div class="camera-box" id="frontBox">
-          <div class="camera-icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-          </div>
-          <span class="camera-hint">Tap to capture</span>
-        </div>
+        <div class="checks-layout">
+          <div class="checks-column">
+            <div class="field-label">Front of Check</div>
+            <div class="camera-box" id="frontBox">
+              <div class="camera-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
+              <span class="camera-hint">Tap to capture</span>
+            </div>
 
-        <div class="field-label">Back of Check</div>
-        <div class="camera-box" id="backBox">
-          <div class="camera-icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
+            <div class="field-label">Back of Check</div>
+            <div class="camera-box" id="backBox">
+              <div class="camera-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
+              <span class="camera-hint">Tap to capture</span>
+            </div>
           </div>
-          <span class="camera-hint">Tap to capture</span>
+
+          <div class="scenario-side">
+            <div class="field-label">Check Scenario</div>
+            <div class="scenario-row" id="scenarioRow">
+              <div class="scenario-chip selected" data-check="1" data-scenario="clean_pass">Clean Pass</div>
+              <div class="scenario-chip" data-check="2" data-scenario="iqafail_blur">IQA Blur</div>
+              <div class="scenario-chip" data-check="3" data-scenario="iqafail_glare">IQA Glare</div>
+              <div class="scenario-chip" data-check="4" data-scenario="micr_fail">MICR Fail</div>
+              <div class="scenario-chip" data-check="5" data-scenario="amount_mismatch">Amt Mismatch</div>
+              <div class="scenario-chip" data-check="6" data-scenario="duplicate">Duplicate</div>
+            </div>
+          </div>
         </div>
 
         <div class="field-label">Deposit Amount</div>
@@ -422,16 +459,6 @@
           <option value="ACC-IQA-GLARE">Test: IQA Glare</option>
           <option value="ACC-MICR-FAIL">Test: MICR Fail</option>
         </select>
-
-        <div class="field-label">Check Scenario</div>
-        <div class="scenario-row" id="scenarioRow">
-          <div class="scenario-chip selected" data-check="1" data-scenario="clean_pass">Clean Pass</div>
-          <div class="scenario-chip" data-check="2" data-scenario="iqafail_blur">IQA Blur</div>
-          <div class="scenario-chip" data-check="3" data-scenario="iqafail_glare">IQA Glare</div>
-          <div class="scenario-chip" data-check="4" data-scenario="micr_fail">MICR Fail</div>
-          <div class="scenario-chip" data-check="5" data-scenario="amount_mismatch">Amt Mismatch</div>
-          <div class="scenario-chip" data-check="6" data-scenario="duplicate">Duplicate</div>
-        </div>
 
         <button class="submit-btn" id="submitBtn" disabled>Submit Deposit</button>
       </div>
@@ -615,6 +642,10 @@ document.querySelectorAll('.scenario-chip').forEach(chip => {
     chip.classList.add('selected');
     state.selectedCheck = parseInt(chip.dataset.check, 10);
     state.selectedScenario = chip.dataset.scenario;
+    // Selecting a scenario should immediately reflect the front image.
+    setCaptured($('frontBox'), 'front');
+    state.frontCaptured = true;
+    updateSubmitBtn();
   };
 });
 
@@ -720,9 +751,10 @@ $('submitBtn').onclick = async () => {
     const j = await r.json();
     const transfer = j.transfer || j;
     state.currentTransfer = transfer;
-    showStatusScreen(transfer, r.ok ? 'success' : 'error');
+    const failure = r.ok ? null : buildFailureDetails(j, transfer);
+    showStatusScreen(transfer, r.ok ? 'success' : 'error', failure);
   } catch(e) {
-    showStatusScreen(null, 'error', e.message);
+    showStatusScreen(null, 'error', { title: 'Submission Failed', explanation: e.message || 'Please try again' });
   } finally {
     btn.disabled = false;
     btn.textContent = 'Submit Deposit';
@@ -730,7 +762,55 @@ $('submitBtn').onclick = async () => {
 };
 
 // ── Status Screen ──
-function showStatusScreen(transfer, kind, errMsg) {
+function titleCaseWords(str) {
+  return str
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function reasonToExplanation(reason) {
+  const normalized = String(reason || '').toLowerCase();
+  const reasonMap = {
+    blur: 'The check image is too blurry. Retake the photo with better focus.',
+    glare: 'The check image has glare. Retake the photo in softer lighting.',
+    micr_fail: 'The check numbers could not be read. Ensure the full check is visible and sharp.',
+    duplicate: 'This check appears to be a duplicate submission.',
+    amount_mismatch: 'The entered amount does not match the amount read from the check.',
+  };
+  return reasonMap[normalized] || null;
+}
+
+function transferFailureReason(transfer) {
+  if (!transfer || !transfer.vendor_response) return '';
+  try {
+    const parsed = JSON.parse(transfer.vendor_response);
+    return parsed && parsed.reason ? String(parsed.reason) : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function buildFailureDetails(responseBody, transfer) {
+  const reason = responseBody?.reason || transferFailureReason(transfer);
+  const message = responseBody?.message || responseBody?.error || '';
+  const reasonLabel = reason ? titleCaseWords(String(reason).replace(/_/g, ' ')) : '';
+  const reasonExplanation = reasonToExplanation(reason);
+
+  if (reasonExplanation) {
+    return { title: reasonLabel ? `Deposit Failed: ${reasonLabel}` : 'Deposit Failed', explanation: reasonExplanation };
+  }
+  if (message) {
+    return { title: 'Deposit Failed', explanation: String(message) };
+  }
+  if (reasonLabel) {
+    return { title: `Deposit Failed: ${reasonLabel}`, explanation: 'Please review the check and try again.' };
+  }
+  return { title: 'Submission Failed', explanation: 'Please try again.' };
+}
+
+function showStatusScreen(transfer, kind, failure) {
   // Banner
   const banner = $('statusBanner');
   banner.className = 'status-banner ' + kind;
@@ -742,19 +822,11 @@ function showStatusScreen(transfer, kind, errMsg) {
     iconEl.setAttribute('stroke', '#004D1A');
     iconEl.innerHTML = '<path d="M20 6L9 17l-5-5"/>';
   } else if (kind === 'error') {
-    $('statusBannerTitle').textContent = errMsg || 'Submission Failed';
-    $('statusBannerSub').textContent = 'Please try again';
+    const details = failure || buildFailureDetails(null, transfer);
+    $('statusBannerTitle').textContent = details.title;
+    $('statusBannerSub').textContent = details.explanation;
     iconEl.setAttribute('stroke', '#8C1C00');
     iconEl.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
-    $('statusAmount').textContent = '—';
-    $('statusAccount').textContent = '—';
-    $('statusCheck').textContent = '—';
-    $('statusDate').textContent = '—';
-    showScreen('screenStatus');
-    $('tabCapture').classList.remove('active');
-    $('tabDeposits').classList.add('active');
-    state.activeTab = 'deposits';
-    return;
   }
 
   if (transfer) {
@@ -810,7 +882,9 @@ function renderHistory(deposits) {
       const t = state.historyDeposits.find(x => x.id === card.dataset.id);
       if (t) {
         state.currentTransfer = t;
-        showStatusScreen(t, 'success');
+        const isFailed = t.state === 'Rejected' || t.state === 'Returned';
+        const kind = isFailed ? 'error' : 'success';
+        showStatusScreen(t, kind, isFailed ? buildFailureDetails(null, t) : null);
       }
     };
   });
