@@ -334,24 +334,6 @@
     </button>
   </div>
 
-  <div class="sidebar-section">
-    <div class="sidebar-section-label">Management</div>
-    <button class="nav-item" id="navAccounts">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-      Accounts
-    </button>
-    <button class="nav-item" id="navSettings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.07 4.93a10 10 0 0 1 1.41 13.5M4.93 4.93a10 10 0 0 0-1.41 13.5"/>
-      </svg>
-      Settings
-    </button>
-  </div>
-
   <div class="sidebar-footer">
     <div class="sidebar-user" id="sidebarUserName">—</div>
     <div class="sidebar-user-email" id="sidebarUserEmail">—</div>
@@ -617,34 +599,6 @@
     </div>
   </div>
 
-  <!-- ── Accounts View ── -->
-  <div class="view" id="viewAccounts">
-    <div class="detail-inner">
-      <div class="queue-header">
-        <div class="queue-title">Accounts</div>
-        <div class="queue-subtitle">Manage investor accounts and omnibus mappings</div>
-      </div>
-      <div class="d-card" style="margin:24px 28px;max-width:480px">
-        <div class="d-card-title">Accounts</div>
-        <p style="font-size:13px;color:var(--muted-foreground)">Account management coming soon.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Settings View ── -->
-  <div class="view" id="viewSettings">
-    <div class="detail-inner">
-      <div class="queue-header">
-        <div class="queue-title">Settings</div>
-        <div class="queue-subtitle">Operator preferences and configuration</div>
-      </div>
-      <div class="d-card" style="margin:24px 28px;max-width:480px">
-        <div class="d-card-title">Settings</div>
-        <p style="font-size:13px;color:var(--muted-foreground)">Settings configuration coming soon.</p>
-      </div>
-    </div>
-  </div>
-
 </div><!-- /main -->
 
 <script>
@@ -666,15 +620,11 @@ const ROUTES = {
   '/operator/review-queue': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
   '/operator/settlement': { view: 'viewSettlement', nav: 'navSettlement', title: 'Settlement' },
   '/operator/audit-log': { view: 'viewAuditLog', nav: 'navAuditLog', title: 'Audit Log' },
-  '/operator/accounts': { view: 'viewAccounts', nav: 'navAccounts', title: 'Accounts' },
-  '/operator/settings': { view: 'viewSettings', nav: 'navSettings', title: 'Settings' },
 };
 const NAV_TO_PATH = {
   navReviewQueue: '/operator/review-queue',
   navSettlement: '/operator/settlement',
   navAuditLog: '/operator/audit-log',
-  navAccounts: '/operator/accounts',
-  navSettings: '/operator/settings',
 };
 
 function apiBase() {
@@ -1058,8 +1008,6 @@ document.querySelectorAll('.audit-filter-chip').forEach(chip => {
 });
 const auditOpFilter = $('auditOperatorFilter');
 if (auditOpFilter) auditOpFilter.onchange = loadAuditLog;
-$('navAccounts').onclick    = () => navigateToPath(NAV_TO_PATH.navAccounts);
-$('navSettings').onclick    = () => navigateToPath(NAV_TO_PATH.navSettings);
 
 async function loadSettlementView() {
   $('settlementResult').className = 'action-feedback';

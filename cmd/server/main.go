@@ -154,9 +154,7 @@ func main() {
 			name = "index.html"
 		case path == "/operator/review-queue",
 			path == "/operator/settlement",
-			path == "/operator/audit-log",
-			path == "/operator/accounts",
-			path == "/operator/settings":
+			path == "/operator/audit-log":
 			name = "index.html"
 		case path == "/operator/login" || path == "/login":
 			name = "login.html"
