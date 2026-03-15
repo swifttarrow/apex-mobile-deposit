@@ -216,6 +216,29 @@
       background-repeat: no-repeat;
       background-position: right 16px center;
     }
+    .account-limit-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+    .account-section {
+      margin-bottom: 20px;
+    }
+    .account-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted-foreground);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+    .account-section-title .limit-badge {
+      font-weight: 500;
+      font-size: 11px;
+      margin-left: 8px;
+      color: var(--primary);
+    }
     .submit-btn {
       width: 100%;
       height: 52px;
@@ -459,12 +482,8 @@
         <div class="field-label">Account</div>
         <select class="account-select" id="accountSelect">
           <option value="ACC-001">Individual Brokerage – ****4821</option>
-          <option value="ACC-002">IRA Account – ****3302</option>
-          <option value="ACC-003">Joint Account – ****7714</option>
-          <option value="ACC-IQA-BLUR">Test: IQA Blur</option>
-          <option value="ACC-IQA-GLARE">Test: IQA Glare</option>
-          <option value="ACC-MICR-FAIL">Test: MICR Fail</option>
         </select>
+        <div class="account-limit-hint" id="accountLimitHint"></div>
 
         <button class="submit-btn" id="submitBtn" disabled>Submit Deposit</button>
       </div>
@@ -596,6 +615,7 @@ let state = {
   activeTab: 'capture',
   apiBase: '',
   historyDeposits: [],
+  accounts: [], // { id, display_name, type, contribution_limit, ytd_contribution, contribution_remaining }
 };
 
 const CHECK_IMAGES = {
@@ -888,40 +908,100 @@ function showStatusScreen(transfer, kind, failure) {
 
 $('statusBackBtn').onclick = () => showTab('capture');
 
-// ── History Screen ──
+// ── Accounts (for selector and history labels) ──
+async function loadAccounts() {
+  try {
+    const r = await fetch(`${apiBase()}/accounts`);
+    if (!r.ok) return;
+    const data = await r.json();
+    state.accounts = data.accounts || [];
+    const sel = $('accountSelect');
+    const currentVal = sel.value;
+    sel.innerHTML = state.accounts.map(a => {
+      let label = a.display_name || a.id;
+      if (a.contribution_limit > 0) {
+        const rem = (a.contribution_remaining ?? (a.contribution_limit - (a.ytd_contribution || 0))).toFixed(0);
+        const lim = a.contribution_limit.toFixed(0);
+        label += ` ($${rem} of $${lim} left)`;
+      }
+      return `<option value="${a.id}">${label}</option>`;
+    }).join('');
+    if (state.accounts.some(a => a.id === currentVal)) sel.value = currentVal;
+    else if (state.accounts.length) sel.value = state.accounts[0].id;
+    updateAccountLimitHint();
+  } catch (_) {}
+}
+
+function accountDisplayName(accountId) {
+  const a = state.accounts.find(x => x.id === accountId);
+  return a ? (a.display_name || a.id) : accountId;
+}
+
+function updateAccountLimitHint() {
+  const hint = $('accountLimitHint');
+  if (!hint) return;
+  const id = $('accountSelect')?.value;
+  const a = state.accounts.find(x => x.id === id);
+  if (a && a.contribution_limit > 0) {
+    const ytd = (a.ytd_contribution || 0).toFixed(2);
+    const lim = a.contribution_limit.toFixed(0);
+    hint.textContent = `Year-to-date: $${ytd} of $${lim} contribution limit`;
+    hint.style.display = 'block';
+  } else {
+    hint.textContent = '';
+    hint.style.display = 'none';
+  }
+}
+
+$('accountSelect').onchange = updateAccountLimitHint;
+
+// ── History Screen (grouped by account) ──
 async function loadHistory() {
   const list = $('depositList');
   list.innerHTML = '<div class="loading-state">Loading deposits…</div>';
-  const accountId = $('accountSelect').value || 'ACC-001';
+  if (!state.accounts.length) await loadAccounts();
   try {
-    const r = await fetch(`${apiBase()}/deposits?account_id=${encodeURIComponent(accountId)}&limit=50`);
+    const r = await fetch(`${apiBase()}/deposits?limit=50`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     state.historyDeposits = data.transfers || [];
-    renderHistory(state.historyDeposits);
+    renderHistoryByAccount(state.historyDeposits);
   } catch(e) {
     list.innerHTML = `<div class="empty-state">Could not load deposits: ${e.message}</div>`;
   }
 }
 
-function renderHistory(deposits) {
+function groupDepositsByAccount(deposits) {
+  const byAccount = {};
+  deposits.forEach(d => {
+    const id = d.account_id || 'Unknown';
+    if (!byAccount[id]) byAccount[id] = [];
+    byAccount[id].push(d);
+  });
+  return byAccount;
+}
+
+function renderHistoryByAccount(deposits) {
   const list = $('depositList');
   if (!deposits.length) { list.innerHTML = '<div class="empty-state">No deposits yet</div>'; return; }
-  list.innerHTML = deposits.map((d, i) => {
-    const num = String(1038 + i).padStart(4,'0');
-    const date = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
-    const status = getDisplayStatus(d.state);
-    return `<div class="deposit-card" data-id="${d.id}">
-      <div class="deposit-card-left">
-        <div class="check-num">Check #${num}</div>
-        <div class="amount">$${(d.amount||0).toFixed(2)}</div>
-      </div>
-      <div class="deposit-card-right">
-        <span class="state-badge state-badge--${status.kind}">${status.label}</span>
-        <span class="deposit-date">${date}</span>
-      </div>
+  const byAccount = groupDepositsByAccount(deposits);
+  const accountIds = Object.keys(byAccount).sort();
+  let html = '';
+  accountIds.forEach(accountId => {
+    const items = byAccount[accountId];
+    const name = accountDisplayName(accountId);
+    const acc = state.accounts.find(a => a.id === accountId);
+    let limitBadge = '';
+    if (acc && acc.contribution_limit > 0) {
+      const rem = (acc.contribution_remaining ?? (acc.contribution_limit - (acc.ytd_contribution || 0))).toFixed(0);
+      limitBadge = `<span class="limit-badge">$${rem} of $${acc.contribution_limit.toFixed(0)} left</span>`;
+    }
+    html += `<div class="account-section" data-account="${accountId}">
+      <div class="account-section-title">${name}${limitBadge}</div>
+      ${items.map((d, i) => renderDepositCard(d, i)).join('')}
     </div>`;
-  }).join('');
+  });
+  list.innerHTML = html;
   list.querySelectorAll('.deposit-card').forEach(card => {
     card.onclick = () => {
       const t = state.historyDeposits.find(x => x.id === card.dataset.id);
@@ -935,16 +1015,34 @@ function renderHistory(deposits) {
   });
 }
 
+function renderDepositCard(d, index) {
+  const num = String(1038 + index).padStart(4,'0');
+  const date = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const status = getDisplayStatus(d.state);
+  return `<div class="deposit-card" data-id="${d.id}">
+    <div class="deposit-card-left">
+      <div class="check-num">Check #${num}</div>
+      <div class="amount">$${(d.amount||0).toFixed(2)}</div>
+    </div>
+    <div class="deposit-card-right">
+      <span class="state-badge state-badge--${status.kind}">${status.label}</span>
+      <span class="deposit-date">${date}</span>
+    </div>
+  </div>`;
+}
+
 $('historySearch').oninput = (e) => {
   const q = e.target.value.toLowerCase();
   const filtered = state.historyDeposits.filter(d => {
     const status = getDisplayStatus(d.state);
-    return d.account_id?.toLowerCase().includes(q) ||
+    const name = accountDisplayName(d.account_id);
+    return name?.toLowerCase().includes(q) ||
+      d.account_id?.toLowerCase().includes(q) ||
       d.state?.toLowerCase().includes(q) ||
       status.label?.toLowerCase().includes(q) ||
       String(d.amount).includes(q);
   });
-  renderHistory(filtered);
+  renderHistoryByAccount(filtered);
 };
 
 // ── Profile Screen ──
@@ -1000,6 +1098,7 @@ $('avatarInput').onchange = (e) => {
 // ── Init ──
 state.apiBase = location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
 loadProfile();
+loadAccounts().then(() => updateAccountLimitHint());
 updateAmountValidation(false);
 </script>
 </body>
