@@ -52,3 +52,30 @@
 **Date:** 2026-03-11
 **Decision:** Settlement trigger response includes `after_eod_cutoff` boolean; settlement still proceeds.
 **Rationale:** Enables monitoring and observability without blocking. Deposits after 6:30 PM CT roll to next business day per requirements; explicit flag supports operator awareness.
+
+## DL-011: Operator authentication (cookie sessions)
+**Date:** 2026-03-12
+**Decision:** Operator login uses cookie-based sessions (gorilla/sessions). Passwords stored as bcrypt hashes in `operators` table. Protected routes use `auth.RequireOperator` middleware.
+**Rationale:** Simple, stateless-from-server perspective, no JWT/OAuth for demo. Session secret via `SESSION_SECRET`; 7-day expiry, HttpOnly, SameSite Lax.
+**Trade-off:** Production would consider CSRF tokens and secure cookie settings (Secure in prod).
+
+## DL-012: Guest login for operator portal
+**Date:** 2026-03-12
+**Decision:** `POST /operator/guest` creates an ephemeral session with a generated operator ID (e.g. `guest-xxxxxxxx`). No DB record; used for demo without seeded accounts.
+**Rationale:** Allows trying the operator UI (queue, approve/reject, settlement) without configuring operator accounts. `/operator/me` returns synthetic guest identity.
+
+## DL-013: Travel clock for testing
+**Date:** 2026-03-12
+**Decision:** `internal/clock.TravelClock` provides app-level time: set arbitrary time, freeze, resume. Used by transfer repo, operator repo, and settlement engine. Exposed in operator portal at `GET/POST /operator/clock` for test-only time travel.
+**Rationale:** EOD cutoff (6:30 PM CT) and settlement batching are time-dependent; tests and demos need reproducible “business day” behavior without waiting or mocking every call site.
+
+## DL-014: Content negotiation for operator SPA
+**Date:** 2026-03-12
+**Decision:** `GET /deposits` and `GET /deposits/{id}` inspect `Accept`: if it prefers `text/html`, serve the operator SPA (index.html); otherwise return JSON. Same path serves both API clients and browser navigation.
+**Rationale:** Single entry point for operator UI and API; no separate `/app` or `/api/deposits` prefix for the list/detail views. Browser requests (navigation, fetch with default Accept) get HTML; API clients sending `Accept: application/json` get JSON.
+
+## DL-015: Idempotency key optional for deposits
+**Date:** 2026-03-12
+**Decision:** If `X-Idempotency-Key` is omitted on `POST /deposits`, the server generates a new UUID and uses it as the idempotency key for that request. Response is still cached and replayed for duplicate keys.
+**Rationale:** Clients that do not send a key still get exactly-once semantics per request (each request gets a new key). Clients that send a key get replay of the same response on retries.
+**Trade-off:** Without a client-supplied key, retries are not deduplicated across duplicate submissions; acceptable for MVP.

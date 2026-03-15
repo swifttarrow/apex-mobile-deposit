@@ -35,6 +35,7 @@
 
 ## Notes
 
-- SQLite used in this demo eliminates database cost for development/testing
-- Real production requires PostgreSQL or Aurora for multi-node deployment
-- Settlement file transmission to bank may have per-file fees from financial institution
+- **Current demo:** Single binary (`bin/checkstream`) with embedded SQLite; no cloud infrastructure required for local dev or recording. Run with `make dev` (or `make build` then run the binary).
+- SQLite used in this demo eliminates database cost for development/testing; see [DL-001](decision_log.md#dl-001-sqlite-over-postgresql).
+- Real production requires PostgreSQL or Aurora for multi-node deployment.
+- Settlement file transmission to bank may have per-file fees from the financial institution.
