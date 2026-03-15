@@ -254,6 +254,23 @@
     }
     .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+    /* Status screen: retake for IQA errors */
+    .status-retake-wrap {
+      margin: 16px 20px 0;
+    }
+    .retake-photos-btn {
+      width: 100%;
+      height: 52px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      border-radius: var(--radius-pill);
+      font-size: 16px;
+      font-weight: 700;
+      font-family: var(--font-secondary);
+      cursor: pointer;
+    }
+
     /* scenario selector */
     .scenario-row {
       display: flex;
@@ -510,6 +527,10 @@
           <div class="status-banner-title" id="statusBannerTitle">Deposit Submitted</div>
           <div class="status-banner-sub" id="statusBannerSub">Your check is being validated</div>
         </div>
+      </div>
+
+      <div id="statusRetakeWrap" class="status-retake-wrap" style="display: none;">
+        <button type="button" class="retake-photos-btn" id="statusRetakeBtn">Retake photos</button>
       </div>
 
       <div class="info-card">
@@ -849,16 +870,30 @@ function buildFailureDetails(responseBody, transfer) {
   const reasonLabel = reason ? titleCaseWords(String(reason).replace(/_/g, ' ')) : '';
   const reasonExplanation = reasonToExplanation(reason);
 
+  const out = { title: '', explanation: '', reason: reason || '' };
   if (reasonExplanation) {
-    return { title: reasonLabel ? `Deposit Failed: ${reasonLabel}` : 'Deposit Failed', explanation: reasonExplanation };
+    out.title = reasonLabel ? `Deposit Failed: ${reasonLabel}` : 'Deposit Failed';
+    out.explanation = reasonExplanation;
+    return out;
   }
   if (message) {
-    return { title: 'Deposit Failed', explanation: String(message) };
+    out.title = 'Deposit Failed';
+    out.explanation = String(message);
+    return out;
   }
   if (reasonLabel) {
-    return { title: `Deposit Failed: ${reasonLabel}`, explanation: 'Please review the check and try again.' };
+    out.title = `Deposit Failed: ${reasonLabel}`;
+    out.explanation = 'Please review the check and try again.';
+    return out;
   }
-  return { title: 'Submission Failed', explanation: 'Please try again.' };
+  out.title = 'Submission Failed';
+  out.explanation = 'Please try again.';
+  return out;
+}
+
+function isIQAErrorReason(reason) {
+  const r = String(reason || '').toLowerCase();
+  return r === 'blur' || r === 'glare';
 }
 
 function showStatusScreen(transfer, kind, failure) {
@@ -900,13 +935,54 @@ function showStatusScreen(transfer, kind, failure) {
     $('statusDate').textContent = transfer.created_at ? new Date(transfer.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
   }
 
+  const retakeWrap = $('statusRetakeWrap');
+  const showRetake = kind === 'error' && failure && isIQAErrorReason(failure.reason);
+  if (retakeWrap) retakeWrap.style.display = showRetake ? 'block' : 'none';
+
   showScreen('screenStatus');
   $('tabCapture').classList.remove('active');
   $('tabDeposits').classList.add('active');
   state.activeTab = 'deposits';
 }
 
+function resetCaptureBoxes() {
+  state.frontCaptured = false;
+  state.backCaptured = false;
+  const frontBox = $('frontBox');
+  const backBox = $('backBox');
+  if (frontBox) {
+    frontBox.classList.remove('captured');
+    frontBox.innerHTML = `
+      <div class="camera-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      </div>
+      <span class="camera-hint">Tap to capture</span>`;
+  }
+  if (backBox) {
+    backBox.classList.remove('captured');
+    backBox.innerHTML = `
+      <div class="camera-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      </div>
+      <span class="camera-hint">Tap to capture</span>`;
+  }
+  $('frontBox').onclick = () => { setCaptured($('frontBox'), 'front'); state.frontCaptured = true; updateSubmitBtn(); };
+  $('backBox').onclick  = () => { setCaptured($('backBox'), 'back');  state.backCaptured  = true; updateSubmitBtn(); };
+  updateSubmitBtn();
+}
+
 $('statusBackBtn').onclick = () => showTab('capture');
+
+$('statusRetakeBtn').onclick = () => {
+  resetCaptureBoxes();
+  showTab('capture');
+};
 
 // ── Accounts (for selector and history labels) ──
 async function loadAccounts() {
