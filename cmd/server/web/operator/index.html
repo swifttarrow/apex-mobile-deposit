@@ -398,7 +398,6 @@
         <div class="stat-label">Pending Review</div>
         <div class="stat-value-row">
           <div class="stat-number" id="statPending">—</div>
-          <span class="stat-badge urgent" id="statUrgentBadge" style="display:none"></span>
         </div>
       </div>
       <div class="stat-card">
@@ -828,22 +827,21 @@ async function loadQueue() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     allTransfers = data.transfers || [];
-    updateStats();
+    updateStats({
+      pending: allTransfers.length,
+      approved_today: data.approved_today,
+      rejected_today: data.rejected_today
+    });
     applyFilter(activeFilter);
   } catch(e) {
     $('queueTbody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--destructive)">Error: ${e.message}</td></tr>`;
   }
 }
 
-function updateStats() {
-  $('statPending').textContent = allTransfers.length;
-  if (allTransfers.length > 0) {
-    $('statUrgentBadge').style.display = 'inline';
-    $('statUrgentBadge').textContent = `Urgent ${Math.min(allTransfers.length, 3)}`;
-  }
-  // Approved/Rejected today: show 0 when no data (queue only returns flagged transfers)
-  $('statApproved').textContent = '0';
-  $('statRejected').textContent = '0';
+function updateStats(stats) {
+  $('statPending').textContent = (stats && stats.pending !== undefined) ? stats.pending : allTransfers.length;
+  $('statApproved').textContent = (stats && stats.approved_today !== undefined) ? String(stats.approved_today) : '—';
+  $('statRejected').textContent = (stats && stats.rejected_today !== undefined) ? String(stats.rejected_today) : '—';
 }
 
 function applyFilter(filter) {
@@ -890,7 +888,7 @@ function renderTable() {
       return `<tr data-id="${t.id}">
         <td><input type="checkbox"></td>
         <td class="mono">DEP-${t.id.slice(0,5).toUpperCase()}</td>
-        <td>${t.account_id}</td>
+        <td>${t.investor_display_name || t.account_id}</td>
         <td>${fmt(t.amount)}</td>
         <td><span class="flag-reason ${fr.cls}">${fr.label}</span></td>
         <td><span class="badge ${riskCls}">${risk}</span></td>
