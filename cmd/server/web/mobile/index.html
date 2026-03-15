@@ -439,10 +439,105 @@
       margin-top: 8px;
     }
     .profile-input::placeholder { color: var(--muted-foreground); }
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--background);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 340px;
+      padding: 28px 24px;
+      background: var(--card);
+      border-radius: var(--radius-l);
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    .login-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--foreground);
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .login-sub {
+      font-size: 14px;
+      color: var(--muted-foreground);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .login-screen .field-label { margin-bottom: 6px; }
+    .login-screen .profile-input {
+      width: 100%;
+      height: 48px;
+      margin-bottom: 16px;
+      padding: 0 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-m);
+      font-size: 16px;
+      background: var(--background);
+      color: var(--foreground);
+    }
+    .login-screen .profile-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .login-error {
+      font-size: 13px;
+      color: var(--destructive);
+      margin-bottom: 12px;
+      min-height: 18px;
+    }
+    .login-btn {
+      width: 100%;
+      height: 48px;
+      margin-top: 8px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      border-radius: var(--radius-pill);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .profile-logout-wrap { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .profile-logout-btn {
+      width: 100%;
+      height: 44px;
+      background: transparent;
+      color: var(--muted-foreground);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-m);
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .profile-logout-btn:hover { background: var(--muted); color: var(--foreground); }
   </style>
 </head>
 <body>
-<div class="app">
+  <!-- Login (shown when not authenticated) -->
+  <div id="loginScreen" class="login-screen" style="display: none;">
+    <div class="login-card">
+      <div class="login-title">Check Deposit</div>
+      <div class="login-sub">Sign in to deposit checks</div>
+      <form id="loginForm">
+        <label class="field-label" for="loginUsername">Username</label>
+        <input type="text" id="loginUsername" class="profile-input" autocomplete="username" placeholder="Username">
+        <label class="field-label" for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" class="profile-input" autocomplete="current-password" placeholder="Password">
+        <div class="login-error" id="loginError"></div>
+        <button type="submit" class="login-btn" id="loginBtn">Sign in</button>
+      </form>
+      <p style="font-size:12px;color:var(--muted-foreground);margin-top:16px;text-align:center">Demo: alice / password or bob / password</p>
+    </div>
+  </div>
+
+<div class="app" id="appContainer" style="display: none;">
   <div class="screen-area">
 
     <!-- ── CAPTURE SCREEN ── -->
@@ -487,6 +582,15 @@
               <div class="scenario-chip" data-check="6" data-scenario="duplicate">Duplicate</div>
             </div>
           </div>
+        </div>
+
+        <div id="userRowDemo" style="display: none;">
+          <div class="field-label">Signed in as</div>
+          <select class="account-select" id="userSelect" aria-label="Current user">
+            <option value="alice">Alice</option>
+            <option value="bob">Bob</option>
+            <option value="">All accounts (demo)</option>
+          </select>
         </div>
 
         <div class="field-label">Deposit Amount</div>
@@ -570,6 +674,9 @@
           <label class="field-label">Email</label>
           <input type="email" class="profile-input" id="profileEmail" placeholder="your@email.com" value="alex.morgan@example.com">
         </div>
+        <div class="profile-logout-wrap">
+          <button type="button" class="profile-logout-btn" id="profileLogoutBtn">Log out</button>
+        </div>
       </div>
     </div>
 
@@ -635,9 +742,14 @@ let state = {
   currentTransfer: null,
   activeTab: 'capture',
   apiBase: '',
+  loggedIn: false,
+  userId: '',
+  displayName: '',
   historyDeposits: [],
   accounts: [], // { id, display_name, type, contribution_limit, ytd_contribution, contribution_remaining }
 };
+
+const fetchOpts = () => ({ credentials: 'include' });
 
 const CHECK_IMAGES = {
   1: 'clean-check.png', 2: 'blurry-check.png', 3: 'glare-check.png',
@@ -648,13 +760,102 @@ function apiBase() {
   if (state.apiBase) return state.apiBase;
   return location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
 }
+
 function checkImgUrl(num, side) {
   const file = side === 'front' ? (CHECK_IMAGES[num] || 'clean-check.png') : 'back-of-check.png';
   return `/mobile/checks/${file}`;
 }
 
-// ── Tabs ──
+// ── Auth ──
+function showLoginScreen() {
+  state.loggedIn = false;
+  state.userId = '';
+  state.displayName = '';
+  $('loginScreen').style.display = 'flex';
+  $('appContainer').style.display = 'none';
+  $('loginError').textContent = '';
+  $('loginUsername').value = '';
+  $('loginPassword').value = '';
+}
+
+function showApp() {
+  state.loggedIn = true;
+  $('loginScreen').style.display = 'none';
+  $('appContainer').style.display = 'block';
+  $('userRowDemo').style.display = 'none';
+  if ($('profileName')) {
+    $('profileName').value = state.displayName || state.userId || '';
+    saveProfile();
+  }
+}
+
+async function checkAuth() {
+  try {
+    const r = await fetch(`${apiBase()}/mobile/me`, fetchOpts());
+    if (r.status === 401) {
+      showLoginScreen();
+      return;
+    }
+    if (!r.ok) {
+      showLoginScreen();
+      return;
+    }
+    const data = await r.json();
+    state.userId = data.user_id || '';
+    state.displayName = data.display_name || data.username || state.userId;
+    showApp();
+    await loadAccounts();
+    updateAccountLimitHint();
+    showTab(tabFromHash());
+  } catch (_) {
+    showLoginScreen();
+  }
+}
+
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = $('loginBtn');
+  const errEl = $('loginError');
+  errEl.textContent = '';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${apiBase()}/mobile/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        username: $('loginUsername').value.trim(),
+        password: $('loginPassword').value,
+      }),
+    });
+    const data = r.ok ? await r.json().catch(() => ({})) : null;
+    if (!r.ok) {
+      errEl.textContent = (data && data.error) || (data && data.message) || `Sign in failed (${r.status})`;
+      return;
+    }
+    state.userId = data.user_id || '';
+    state.displayName = data.display_name || data.username || state.userId;
+    showApp();
+    await loadAccounts();
+    updateAccountLimitHint();
+    showTab(tabFromHash());
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+$('profileLogoutBtn').onclick = async () => {
+  try {
+    await fetch(`${apiBase()}/mobile/logout`, { method: 'POST', ...fetchOpts() });
+  } catch (_) {}
+  showLoginScreen();
+};
+
+// ── Tabs (hash persists across refresh) ──
+const VALID_TABS = ['capture', 'deposits', 'profile'];
+
 function showTab(tab) {
+  if (!VALID_TABS.includes(tab)) tab = 'capture';
   ['capture','deposits','profile'].forEach(t => {
     $('tab' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.remove('active');
   });
@@ -671,11 +872,26 @@ function showTab(tab) {
     $('tabProfile').classList.add('active');
     showScreen('screenProfile');
   }
+  // Persist in URL so refresh keeps same view
+  const hash = tab === 'capture' ? '' : tab;
+  if (location.hash.slice(1) !== hash) {
+    location.hash = hash;
+  }
+}
+
+function tabFromHash() {
+  const t = location.hash.slice(1).toLowerCase();
+  return VALID_TABS.includes(t) ? t : 'capture';
 }
 
 $('tabCapture').onclick  = () => showTab('capture');
 $('tabDeposits').onclick = () => showTab('deposits');
 $('tabProfile').onclick  = () => showTab('profile');
+
+window.addEventListener('hashchange', () => {
+  const tab = tabFromHash();
+  if (tab !== state.activeTab) showTab(tab);
+});
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -786,12 +1002,14 @@ $('submitBtn').onclick = async () => {
       method: 'POST',
       headers: { 'X-Test-Scenario': scenario },
       body: form,
+      credentials: 'include',
     });
     if (r.status === 415 || r.status === 400) {
       r = await fetch(`${apiBase()}/deposits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Test-Scenario': scenario },
         body: JSON.stringify({ account_id: accountId, amount, front_image: 'mock-front', back_image: 'mock-back', source: 'mobile', scenario }),
+        credentials: 'include',
       });
     }
 
@@ -819,7 +1037,7 @@ function startStatusPolling(transferId) {
   stopStatusPolling();
   statusPollingId = setInterval(async () => {
     try {
-      const r = await fetch(`${apiBase()}/deposits/${transferId}`);
+      const r = await fetch(`${apiBase()}/deposits/${transferId}`, fetchOpts());
       if (!r.ok) return;
       const t = await r.json();
       state.currentTransfer = t;
@@ -1018,7 +1236,9 @@ $('statusRetakeBtn').onclick = () => {
 // ── Accounts (for selector and history labels) ──
 async function loadAccounts() {
   try {
-    const r = await fetch(`${apiBase()}/accounts`);
+    const opts = { ...fetchOpts() };
+    if (!state.loggedIn && state.userId) opts.headers = { 'X-User-ID': state.userId };
+    const r = await fetch(`${apiBase()}/accounts`, opts);
     if (!r.ok) return;
     const data = await r.json();
     state.accounts = data.accounts || [];
@@ -1062,13 +1282,24 @@ function updateAccountLimitHint() {
 
 $('accountSelect').onchange = updateAccountLimitHint;
 
+$('userSelect').onchange = () => {
+  if (state.loggedIn) return;
+  state.userId = $('userSelect').value || '';
+  loadAccounts().then(() => {
+    updateAccountLimitHint();
+    if (state.activeTab === 'deposits') loadHistory();
+  });
+};
+
 // ── History Screen (grouped by account) ──
 async function loadHistory() {
   const list = $('depositList');
   list.innerHTML = '<div class="loading-state">Loading deposits…</div>';
   if (!state.accounts.length) await loadAccounts();
   try {
-    const r = await fetch(`${apiBase()}/deposits?limit=50`);
+    const opts = { ...fetchOpts() };
+    if (!state.loggedIn && state.userId) opts.headers = { 'X-User-ID': state.userId };
+    const r = await fetch(`${apiBase()}/deposits?limit=50`, opts);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     state.historyDeposits = data.transfers || [];
@@ -1205,7 +1436,7 @@ $('avatarInput').onchange = (e) => {
 // ── Init ──
 state.apiBase = location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
 loadProfile();
-loadAccounts().then(() => updateAccountLimitHint());
+checkAuth();
 updateAmountValidation(false);
 </script>
 </body>

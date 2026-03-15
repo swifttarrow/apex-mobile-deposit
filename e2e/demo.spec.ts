@@ -21,9 +21,13 @@ test.describe('Demo — mobile to operator e2e', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
     await expect(page.getByRole('button', { name: 'Review Queue' })).toBeVisible();
 
-    // ── 2. Mobile: submit deposits ──
+    // ── 2. Mobile: sign in (investor) then submit deposits ──
     await page.goto('/mobile/');
-    await expect(page.getByText('Deposit Check')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await page.locator('#loginUsername').fill('alice');
+    await page.locator('#loginPassword').fill('password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByText('Deposit Check')).toBeVisible({ timeout: 5_000 });
 
     await page.locator('#frontBox').click();
     await page.locator('#backBox').click();
@@ -60,8 +64,9 @@ test.describe('Demo — mobile to operator e2e', () => {
     await page.locator('#triggerSettlementBtn').click();
     await expect(page.locator('#settlementResult')).toContainText(/Batch|triggered|total_count|\d+ transfer/i, { timeout: 10_000 });
 
-    // ── 5. Operator: one more mobile deposit ──
+    // ── 5. Mobile: one more deposit (session should still be valid) ──
     await page.goto('/mobile/');
+    await expect(page.getByText('Deposit Check')).toBeVisible({ timeout: 5_000 });
     await page.getByRole('button', { name: 'DEPOSIT' }).click();
     await page.locator('#frontBox').click();
     await page.locator('#backBox').click();
