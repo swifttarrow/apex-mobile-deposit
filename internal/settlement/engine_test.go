@@ -118,7 +118,7 @@ func TestGenerateSettlementFile_Empty(t *testing.T) {
 	engine := NewEngine(database, transferRepo, ledgerSvc)
 	engine.nowFn = func() time.Time { return mustTime(t, "2024-01-16T01:00:00Z") } // 7:00 PM CT
 
-	batch, err := engine.GenerateSettlementFile()
+	batch, err := engine.GenerateSettlementFile(false)
 	if err != nil {
 		t.Fatalf("generate settlement: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestGenerateSettlementFile_WithTransfers(t *testing.T) {
 		t.Fatalf("set created_at: %v", err)
 	}
 
-	batch, err := engine.GenerateSettlementFile()
+	batch, err := engine.GenerateSettlementFile(false)
 	if err != nil {
 		t.Fatalf("generate settlement: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestGenerateSettlementFile_RespectsEODCutoff(t *testing.T) {
 		t.Fatalf("set created_at after cutoff: %v", err)
 	}
 
-	batch, err := engine.GenerateSettlementFile()
+	batch, err := engine.GenerateSettlementFile(false)
 	if err != nil {
 		t.Fatalf("generate settlement: %v", err)
 	}

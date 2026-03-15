@@ -3,6 +3,7 @@ package transfer
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -122,6 +123,49 @@ func (r *Repository) UpdateTransferState(t *Transfer) error {
 	return nil
 }
 
+// GetTransfersByIDs returns transfers for the given IDs. Missing IDs are omitted; order is not guaranteed.
+func (r *Repository) GetTransfersByIDs(ids []string) ([]*Transfer, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := `
+		SELECT id, account_id, amount, state,
+		       COALESCE(vendor_response,''), COALESCE(front_image_path,''), COALESCE(back_image_path,''),
+		       COALESCE(micr_data,''), COALESCE(ocr_amount,0), COALESCE(entered_amount,0),
+		       COALESCE(transaction_id,''), COALESCE(contribution_type,''),
+		       COALESCE(settlement_batch_id,''), COALESCE(settlement_ack_at,''),
+		       created_at, updated_at
+		FROM transfers WHERE id IN (` + strings.Join(placeholders, ",") + `)`
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get transfers by ids: %w", err)
+	}
+	defer rows.Close()
+	var transfers []*Transfer
+	for rows.Next() {
+		t := &Transfer{}
+		err := rows.Scan(
+			&t.ID, &t.AccountID, &t.Amount, &t.State,
+			&t.VendorResponse, &t.FrontImagePath, &t.BackImagePath,
+			&t.MICRData, &t.OCRAmount, &t.EnteredAmount,
+			&t.TransactionID, &t.ContributionType,
+			&t.SettlementBatchID, &t.SettlementAckAt,
+			&t.CreatedAt, &t.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan transfer: %w", err)
+		}
+		transfers = append(transfers, t)
+	}
+	return transfers, rows.Err()
+}
+
 // ListTransfers returns all transfers, optionally filtered by state.
 func (r *Repository) ListTransfers(state State) ([]*Transfer, error) {
 	query := `
@@ -164,9 +208,9 @@ func (r *Repository) ListTransfers(state State) ([]*Transfer, error) {
 	return transfers, rows.Err()
 }
 
-// ListTransfersByAccount returns transfers for an account, ordered by created_at DESC, with pagination.
-// If status is non-empty, filters by that state. limit=0 means no limit.
-func (r *Repository) ListTransfersByAccount(accountID string, limit, offset int, status State) ([]*Transfer, error) {
+// ListSettledTransfersSince returns Completed transfers with settlement_ack_at > since (for settlement reports).
+func (r *Repository) ListSettledTransfersSince(since time.Time) ([]*Transfer, error) {
+	sinceStr := since.UTC().Format(time.RFC3339)
 	query := `
 		SELECT id, account_id, amount, state,
 		       COALESCE(vendor_response,''), COALESCE(front_image_path,''), COALESCE(back_image_path,''),
@@ -174,8 +218,59 @@ func (r *Repository) ListTransfersByAccount(accountID string, limit, offset int,
 		       COALESCE(transaction_id,''), COALESCE(contribution_type,''),
 		       COALESCE(settlement_batch_id,''), COALESCE(settlement_ack_at,''),
 		       created_at, updated_at
-		FROM transfers WHERE account_id = ?`
-	args := []interface{}{accountID}
+		FROM transfers
+		WHERE state = ? AND settlement_ack_at > ?
+		ORDER BY settlement_ack_at ASC`
+	rows, err := r.db.Query(query, string(StateCompleted), sinceStr)
+	if err != nil {
+		return nil, fmt.Errorf("list settled since: %w", err)
+	}
+	defer rows.Close()
+	var transfers []*Transfer
+	for rows.Next() {
+		t := &Transfer{}
+		err := rows.Scan(
+			&t.ID, &t.AccountID, &t.Amount, &t.State,
+			&t.VendorResponse, &t.FrontImagePath, &t.BackImagePath,
+			&t.MICRData, &t.OCRAmount, &t.EnteredAmount,
+			&t.TransactionID, &t.ContributionType,
+			&t.SettlementBatchID, &t.SettlementAckAt,
+			&t.CreatedAt, &t.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan transfer: %w", err)
+		}
+		transfers = append(transfers, t)
+	}
+	return transfers, rows.Err()
+}
+
+// ListTransfersByAccount returns transfers for an account, ordered by created_at DESC, with pagination.
+// If status is non-empty, filters by that state. limit=0 means no limit.
+func (r *Repository) ListTransfersByAccount(accountID string, limit, offset int, status State) ([]*Transfer, error) {
+	return r.ListTransfersByAccounts([]string{accountID}, limit, offset, status)
+}
+
+// ListTransfersByAccounts returns transfers for any of the given accounts, ordered by created_at DESC.
+// If accountIDs is empty, returns nil. If status is non-empty, filters by that state. limit=0 means no limit.
+func (r *Repository) ListTransfersByAccounts(accountIDs []string, limit, offset int, status State) ([]*Transfer, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(accountIDs))
+	args := make([]interface{}, 0, len(accountIDs)+1)
+	for i, id := range accountIDs {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	query := `
+		SELECT id, account_id, amount, state,
+		       COALESCE(vendor_response,''), COALESCE(front_image_path,''), COALESCE(back_image_path,''),
+		       COALESCE(micr_data,''), COALESCE(ocr_amount,0), COALESCE(entered_amount,0),
+		       COALESCE(transaction_id,''), COALESCE(contribution_type,''),
+		       COALESCE(settlement_batch_id,''), COALESCE(settlement_ack_at,''),
+		       created_at, updated_at
+		FROM transfers WHERE account_id IN (` + strings.Join(placeholders, ",") + `)`
 	if status != "" {
 		query += " AND state = ?"
 		args = append(args, string(status))
@@ -187,7 +282,7 @@ func (r *Repository) ListTransfersByAccount(accountID string, limit, offset int,
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list transfers by account: %w", err)
+		return nil, fmt.Errorf("list transfers by accounts: %w", err)
 	}
 	defer rows.Close()
 
@@ -208,6 +303,25 @@ func (r *Repository) ListTransfersByAccount(accountID string, limit, offset int,
 		transfers = append(transfers, t)
 	}
 	return transfers, rows.Err()
+}
+
+// SumPostedAmountByAccountYear returns the sum of amounts for an account in the given year
+// for transfers in FundsPosted or Completed state (contribution YTD).
+func (r *Repository) SumPostedAmountByAccountYear(accountID string, year int) (float64, error) {
+	yearStr := fmt.Sprintf("%d", year)
+	var sum sql.NullFloat64
+	err := r.db.QueryRow(`
+		SELECT COALESCE(SUM(amount), 0) FROM transfers
+		WHERE account_id = ? AND (state = ? OR state = ?)
+		  AND strftime('%Y', created_at) = ?`,
+		accountID, string(StateFundsPosted), string(StateCompleted), yearStr).Scan(&sum)
+	if err != nil {
+		return 0, fmt.Errorf("sum posted amount by account year: %w", err)
+	}
+	if !sum.Valid {
+		return 0, nil
+	}
+	return sum.Float64, nil
 }
 
 // GetTransferByTransactionID looks up a transfer by its vendor transaction_id.

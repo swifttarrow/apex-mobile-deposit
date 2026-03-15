@@ -148,7 +148,7 @@ func TestProcessReturn_FundsPostedExcludedFromSettlement(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	engine := settlement.NewEngine(svc.db, repo, ledgerSvc)
-	batch, err := engine.GenerateSettlementFile()
+	batch, err := engine.GenerateSettlementFile(false)
 	if err != nil {
 		t.Fatalf("generate settlement: %v", err)
 	}
