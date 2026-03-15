@@ -31,6 +31,29 @@ func (h *SettlementHandler) SetNowFunc(nowFn func() time.Time) {
 	h.nowFn = nowFn
 }
 
+// SettlementHealth handles GET /health/settlement for monitoring missing or delayed settlement files.
+func (h *SettlementHandler) SettlementHealth(w http.ResponseWriter, r *http.Request) {
+	now := h.nowFn()
+	unsettledCount, afterEOD, err := h.engine.SettlementHealth(now)
+	if err != nil {
+		log.Printf("settlement health: %v", err)
+		writeError(w, http.StatusInternalServerError, "settlement health check failed")
+		return
+	}
+	status := "ok"
+	warning := ""
+	if afterEOD && unsettledCount > 0 {
+		warning = "unsettled_funds_posted"
+		// Optional: return 503 to alert; we use 200 with warning for flexibility
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":                   status,
+		"after_eod_cutoff":         afterEOD,
+		"unsettled_funds_posted":   unsettledCount,
+		"warning":                  warning,
+	})
+}
+
 // Trigger handles POST /settlement/trigger.
 func (h *SettlementHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 	afterEOD := settlement.IsAfterEOD(h.nowFn())

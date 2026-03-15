@@ -11,6 +11,7 @@ import (
 
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/transfer"
+	"github.com/checkstream/checkstream/internal/trace"
 	"github.com/google/uuid"
 )
 
@@ -61,6 +62,15 @@ func (e *Engine) SetNowFunc(nowFn func() time.Time) {
 		return
 	}
 	e.nowFn = nowFn
+}
+
+// SettlementHealth returns counts and EOD state for monitoring (missing or delayed settlement).
+func (e *Engine) SettlementHealth(now time.Time) (unsettledCount int, afterEOD bool, err error) {
+	transfers, err := e.transferRepo.ListTransfers(transfer.StateFundsPosted)
+	if err != nil {
+		return 0, false, err
+	}
+	return len(transfers), IsAfterEOD(now), nil
 }
 
 // GenerateSettlementFile creates a settlement batch for all FundsPosted transfers.
@@ -142,6 +152,7 @@ func (e *Engine) GenerateSettlementFile() (*SettlementFile, error) {
 		if err := e.transferRepo.UpdateTransferState(t); err != nil {
 			log.Printf("settlement: update transfer %s: %v", t.ID, err)
 		}
+		trace.DepositTrace(t.ID, t.AccountID, "settlement_status", map[string]interface{}{"status": "completed", "batch_id": batchID})
 	}
 
 	batch.TotalCount = len(batch.Transfers)

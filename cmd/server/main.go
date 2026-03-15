@@ -166,6 +166,7 @@ func main() {
 	// Settlement routes (require operator login)
 	settlementHandler := api.NewSettlementHandler(settlementEngine)
 	settlementHandler.SetNowFunc(travelClock.Now)
+	mux.HandleFunc("GET /health/settlement", settlementHandler.SettlementHealth)
 	mux.HandleFunc("POST /settlement/trigger", auth.RequireOperator(settlementHandler.Trigger))
 
 	// Test-only time travel controls in operator portal.

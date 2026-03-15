@@ -19,6 +19,56 @@ func mustTime(t *testing.T, value string) time.Time {
 	return ts
 }
 
+func TestSettlementHealth(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer database.Close()
+
+	transferRepo := transfer.NewRepository(database)
+	ledgerSvc := ledger.NewService(database)
+	engine := NewEngine(database, transferRepo, ledgerSvc)
+
+	// Before EOD, no unsettled
+	nowBefore := mustTime(t, "2024-01-15T18:00:00Z") // 12 PM CT
+	unsettled, afterEOD, err := engine.SettlementHealth(nowBefore)
+	if err != nil {
+		t.Fatalf("SettlementHealth: %v", err)
+	}
+	if unsettled != 0 {
+		t.Errorf("expected 0 unsettled, got %d", unsettled)
+	}
+	if afterEOD {
+		t.Error("expected not after EOD")
+	}
+
+	// After EOD with one FundsPosted (valid transition path)
+	tr, err := transferRepo.CreateTransfer("ACC-001", 50.00)
+	if err != nil {
+		t.Fatalf("create transfer: %v", err)
+	}
+	for _, s := range []transfer.State{transfer.StateValidating, transfer.StateAnalyzing, transfer.StateApproved, transfer.StateFundsPosted} {
+		if err := tr.Transition(s); err != nil {
+			t.Fatalf("transition to %s: %v", s, err)
+		}
+	}
+	if err := transferRepo.UpdateTransferState(tr); err != nil {
+		t.Fatalf("update transfer state: %v", err)
+	}
+	nowAfter := mustTime(t, "2024-01-15T00:31:00Z") // 6:31 PM CT
+	unsettled, afterEOD, err = engine.SettlementHealth(nowAfter)
+	if err != nil {
+		t.Fatalf("SettlementHealth: %v", err)
+	}
+	if unsettled != 1 {
+		t.Errorf("expected 1 unsettled, got %d", unsettled)
+	}
+	if !afterEOD {
+		t.Error("expected after EOD")
+	}
+}
+
 func TestIsAfterEOD(t *testing.T) {
 	loc, _ := time.LoadLocation("America/Chicago")
 
