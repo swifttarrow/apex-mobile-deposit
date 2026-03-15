@@ -226,7 +226,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if err := h.fundingSvc.CheckLimit(req.Amount); err != nil {
+	if err := h.fundingSvc.CheckLimit(req.AccountID, req.Amount); err != nil {
 		trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "limit"})
 		h.rejectTransfer(t, "over limit")
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
@@ -340,18 +340,25 @@ func (h *DepositHandler) rejectTransfer(t *transfer.Transfer, reason string) {
 }
 
 // List handles GET /deposits?account_id=...&limit=...&offset=...&status=...
+// account_id is optional; when omitted, returns deposits for all configured accounts.
 func (h *DepositHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	accountID := q.Get("account_id")
-	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "account_id is required")
-		return
-	}
 	limit, _ := strconv.Atoi(q.Get("limit"))
+	if limit <= 0 {
+		limit = 50
+	}
 	offset, _ := strconv.Atoi(q.Get("offset"))
 	status := transfer.State(q.Get("status"))
 
-	transfers, err := h.transferRepo.ListTransfersByAccount(accountID, limit, offset, status)
+	var transfers []*transfer.Transfer
+	var err error
+	if accountID != "" {
+		transfers, err = h.transferRepo.ListTransfersByAccount(accountID, limit, offset, status)
+	} else {
+		accountIDs := h.fundingCfg.GetAccountIDs()
+		transfers, err = h.transferRepo.ListTransfersByAccounts(accountIDs, limit, offset, status)
+	}
 	if err != nil {
 		log.Printf("deposit list: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to list deposits")
