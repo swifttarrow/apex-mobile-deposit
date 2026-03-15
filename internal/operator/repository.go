@@ -5,29 +5,42 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/checkstream/checkstream/internal/transfer"
+	"github.com/google/uuid"
 )
 
 // Action represents an operator action on a transfer.
 type Action struct {
-	ID                     string `json:"id"`
-	TransferID             string `json:"transfer_id"`
-	Action                 string `json:"action"`
-	OperatorID             string `json:"operator_id"`
-	Note                   string `json:"note,omitempty"`
+	ID                       string `json:"id"`
+	TransferID               string `json:"transfer_id"`
+	Action                   string `json:"action"`
+	OperatorID               string `json:"operator_id"`
+	Note                     string `json:"note,omitempty"`
 	ContributionTypeOverride string `json:"contribution_type_override,omitempty"`
-	CreatedAt              string `json:"created_at"`
+	CreatedAt                string `json:"created_at"`
 }
 
 // Repository handles operator actions and flagged transfer querying.
 type Repository struct {
-	db *sql.DB
+	db    *sql.DB
+	nowFn func() time.Time
 }
 
 // NewRepository creates a new operator repository.
 func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+	return &Repository{
+		db:    db,
+		nowFn: time.Now,
+	}
+}
+
+// SetNowFunc overrides the clock source used for operator action timestamps.
+func (r *Repository) SetNowFunc(nowFn func() time.Time) {
+	if nowFn == nil {
+		r.nowFn = time.Now
+		return
+	}
+	r.nowFn = nowFn
 }
 
 // ListFlaggedTransfers returns transfers in the Analyzing state, with optional filters and pagination.
@@ -209,15 +222,15 @@ func (r *Repository) ListActions(transferID string) ([]*Action, error) {
 
 // RecordAction inserts an operator action record.
 func (r *Repository) RecordAction(transferID, action, operatorID, note, contributionTypeOverride string) (*Action, error) {
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := r.nowFn().UTC().Format(time.RFC3339)
 	a := &Action{
-		ID:                     uuid.New().String(),
-		TransferID:             transferID,
-		Action:                 action,
-		OperatorID:             operatorID,
-		Note:                   note,
+		ID:                       uuid.New().String(),
+		TransferID:               transferID,
+		Action:                   action,
+		OperatorID:               operatorID,
+		Note:                     note,
 		ContributionTypeOverride: contributionTypeOverride,
-		CreatedAt:              now,
+		CreatedAt:                now,
 	}
 
 	_, err := r.db.Exec(`

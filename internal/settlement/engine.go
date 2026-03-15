@@ -9,17 +9,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/transfer"
+	"github.com/google/uuid"
 )
 
 // SettlementFile represents the X9-like settlement batch file.
 type SettlementFile struct {
-	BatchID    string             `json:"batch_id"`
-	CreatedAt  string             `json:"created_at"`
-	Transfers  []SettlementEntry  `json:"transfers"`
-	TotalCount int                `json:"total_count"`
+	BatchID     string            `json:"batch_id"`
+	CreatedAt   string            `json:"created_at"`
+	Transfers   []SettlementEntry `json:"transfers"`
+	TotalCount  int               `json:"total_count"`
 	TotalAmount float64           `json:"total_amount"`
 }
 
@@ -41,6 +41,7 @@ type Engine struct {
 	db           *sql.DB
 	transferRepo *transfer.Repository
 	ledgerSvc    *ledger.Service
+	nowFn        func() time.Time
 }
 
 // NewEngine creates a new settlement engine.
@@ -49,13 +50,24 @@ func NewEngine(db *sql.DB, transferRepo *transfer.Repository, ledgerSvc *ledger.
 		db:           db,
 		transferRepo: transferRepo,
 		ledgerSvc:    ledgerSvc,
+		nowFn:        time.Now,
 	}
+}
+
+// SetNowFunc overrides the clock source used by the engine.
+func (e *Engine) SetNowFunc(nowFn func() time.Time) {
+	if nowFn == nil {
+		e.nowFn = time.Now
+		return
+	}
+	e.nowFn = nowFn
 }
 
 // GenerateSettlementFile creates a settlement batch for all FundsPosted transfers.
 func (e *Engine) GenerateSettlementFile() (*SettlementFile, error) {
-	now := time.Now().UTC()
+	now := e.nowFn().UTC()
 	batchID := uuid.New().String()
+	triggerSettlementDate := TriggerSettlementDate(now)
 
 	// Get all FundsPosted transfers
 	transfers, err := e.transferRepo.ListTransfers(transfer.StateFundsPosted)
@@ -81,6 +93,17 @@ func (e *Engine) GenerateSettlementFile() (*SettlementFile, error) {
 	ackAt := now.Format(time.RFC3339)
 
 	for _, t := range transfers {
+		createdAt, parseErr := time.Parse(time.RFC3339, t.CreatedAt)
+		if parseErr == nil {
+			transferSettlementDate := SettlementDateForDeposit(createdAt)
+			if transferSettlementDate.After(triggerSettlementDate) {
+				// This transfer belongs to a future settlement business day.
+				continue
+			}
+		} else {
+			log.Printf("settlement: unable to parse created_at for transfer %s: %v", t.ID, parseErr)
+		}
+
 		entry := SettlementEntry{
 			TransferID:    t.ID,
 			AccountID:     t.AccountID,

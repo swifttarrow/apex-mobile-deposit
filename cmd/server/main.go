@@ -11,12 +11,13 @@ import (
 
 	"github.com/checkstream/checkstream/internal/api"
 	"github.com/checkstream/checkstream/internal/auth"
+	appclock "github.com/checkstream/checkstream/internal/clock"
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
-	"github.com/checkstream/checkstream/internal/settlement"
 	returnpkg "github.com/checkstream/checkstream/internal/return_"
+	"github.com/checkstream/checkstream/internal/settlement"
 	"github.com/checkstream/checkstream/internal/transfer"
 	"github.com/checkstream/checkstream/internal/vendor"
 )
@@ -53,6 +54,10 @@ func main() {
 		log.Printf("warning: seed test operators: %v", err)
 	}
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
+	travelClock := appclock.NewTravelClock()
+	transferRepo.SetNowFunc(travelClock.Now)
+	operatorRepo.SetNowFunc(travelClock.Now)
+	settlementEngine.SetNowFunc(travelClock.Now)
 	returnSvc := returnpkg.NewService(database, transferRepo, ledgerSvc)
 
 	mux := http.NewServeMux()
@@ -93,7 +98,13 @@ func main() {
 
 	// Settlement routes (require operator login)
 	settlementHandler := api.NewSettlementHandler(settlementEngine)
+	settlementHandler.SetNowFunc(travelClock.Now)
 	mux.HandleFunc("POST /settlement/trigger", auth.RequireOperator(settlementHandler.Trigger))
+
+	// Test-only time travel controls in operator portal.
+	clockHandler := api.NewClockHandler(travelClock)
+	mux.HandleFunc("GET /operator/clock", auth.RequireOperator(clockHandler.Get))
+	mux.HandleFunc("POST /operator/clock", auth.RequireOperator(clockHandler.Update))
 
 	// Returns routes
 	returnsHandler := api.NewReturnsHandler(returnSvc)
@@ -140,6 +151,12 @@ func main() {
 		var name string
 		switch {
 		case path == "/" || path == "" || path == "/operator" || path == "/operator/":
+			name = "index.html"
+		case path == "/operator/review-queue",
+			path == "/operator/settlement",
+			path == "/operator/audit-log",
+			path == "/operator/accounts",
+			path == "/operator/settings":
 			name = "index.html"
 		case path == "/operator/login" || path == "/login":
 			name = "login.html"

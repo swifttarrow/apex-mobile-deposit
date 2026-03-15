@@ -10,17 +10,30 @@ import (
 
 // Repository handles persistence for transfers.
 type Repository struct {
-	db *sql.DB
+	db    *sql.DB
+	nowFn func() time.Time
 }
 
 // NewRepository creates a new transfer repository.
 func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+	return &Repository{
+		db:    db,
+		nowFn: time.Now,
+	}
+}
+
+// SetNowFunc overrides the clock source used for persisted timestamps.
+func (r *Repository) SetNowFunc(nowFn func() time.Time) {
+	if nowFn == nil {
+		r.nowFn = time.Now
+		return
+	}
+	r.nowFn = nowFn
 }
 
 // CreateTransfer inserts a new transfer with state Requested.
 func (r *Repository) CreateTransfer(accountID string, amount float64) (*Transfer, error) {
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := r.nowFn().UTC().Format(time.RFC3339)
 	t := &Transfer{
 		ID:        uuid.New().String(),
 		AccountID: accountID,
@@ -72,7 +85,7 @@ func (r *Repository) GetTransfer(id string) (*Transfer, error) {
 
 // UpdateTransferState updates the transfer state and all mutable fields.
 func (r *Repository) UpdateTransferState(t *Transfer) error {
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := r.nowFn().UTC().Format(time.RFC3339)
 	t.UpdatedAt = now
 	_, err := r.db.Exec(`
 		UPDATE transfers SET
