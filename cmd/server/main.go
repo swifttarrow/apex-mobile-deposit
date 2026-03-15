@@ -15,6 +15,7 @@ import (
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/depositjob"
 	"github.com/checkstream/checkstream/internal/funding"
+	"github.com/checkstream/checkstream/internal/investor"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
 	returnpkg "github.com/checkstream/checkstream/internal/return_"
@@ -80,6 +81,10 @@ func main() {
 	operatorRepo := operator.NewRepository(database)
 	if err := operatorRepo.SeedTestOperators(); err != nil {
 		log.Printf("warning: seed test operators: %v", err)
+	}
+	investorRepo := investor.NewInvestorRepo(database)
+	if err := investorRepo.SeedTestInvestors(); err != nil {
+		log.Printf("warning: seed test investors: %v", err)
 	}
 	jobRepo := depositjob.NewRepository(database)
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
@@ -148,6 +153,12 @@ func main() {
 
 	accountsHandler := api.NewAccountsHandler(fundingCfg, transferRepo)
 	mux.HandleFunc("GET /accounts", accountsHandler.List)
+
+	// Mobile/investor auth (login, logout, me)
+	mobileAuthHandler := api.NewMobileAuthHandler(investorRepo)
+	mux.HandleFunc("POST /mobile/login", mobileAuthHandler.MobileLogin)
+	mux.HandleFunc("POST /mobile/logout", mobileAuthHandler.MobileLogout)
+	mux.HandleFunc("GET /mobile/me", mobileAuthHandler.MobileMe)
 
 	// Operator auth routes (no auth required)
 	authHandler := api.NewAuthHandler(operatorRepo)

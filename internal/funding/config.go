@@ -42,6 +42,13 @@ var AccountDisplayNames = map[string]string{
 	"ACC-MICR-FAIL":  "Test: MICR Fail",
 }
 
+// UserAccountIDs maps user IDs to the account IDs that user can access (mobile).
+// When nil or when user is not in map, all configured accounts are returned for backward compatibility.
+var UserAccountIDs = map[string][]string{
+	"alice": {"ACC-001", "ACC-002", "ACC-RETIRE-001", "ACC-MICR-FAIL"}, // includes test account for scenarios
+	"bob":   {"ACC-003", "ACC-401K-001"},
+}
+
 // TypeRule defines limits for an account type (e.g. 401k contribution limit).
 type TypeRule struct {
 	// AnnualContributionLimit is the max contribution per year (e.g. 401k $24,500). 0 = use deposit limit only.
@@ -58,12 +65,13 @@ var AccountTypeRules = map[string]TypeRule{
 
 // Config holds funding configuration.
 type Config struct {
-	OmnibusMap         map[string]string
-	AccountTypeMap     map[string]string
+	OmnibusMap          map[string]string
+	AccountTypeMap      map[string]string
 	AccountDisplayNames map[string]string
-	AccountTypeRules   map[string]TypeRule
-	DepositLimit       float64
-	ReturnFee          float64
+	AccountTypeRules    map[string]TypeRule
+	UserAccountIDs      map[string][]string // user ID -> account IDs (mobile); nil = no user filtering
+	DepositLimit        float64
+	ReturnFee           float64
 }
 
 // NewConfig creates a new funding configuration with defaults.
@@ -73,6 +81,7 @@ func NewConfig() *Config {
 		AccountTypeMap:      AccountTypeMap,
 		AccountDisplayNames: AccountDisplayNames,
 		AccountTypeRules:    AccountTypeRules,
+		UserAccountIDs:      UserAccountIDs,
 		DepositLimit:        DepositLimit,
 		ReturnFee:           ReturnFee,
 	}
@@ -92,6 +101,27 @@ func (c *Config) GetAccountIDs() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// GetAccountIDsForUser returns account IDs for the given user when UserAccountIDs is configured.
+// If userID is empty or UserAccountIDs is nil/empty, returns all configured accounts (backward compatible).
+// Only returns IDs that exist in OmnibusMap. Unknown users get an empty slice.
+func (c *Config) GetAccountIDsForUser(userID string) []string {
+	if userID == "" || len(c.UserAccountIDs) == 0 {
+		return c.GetAccountIDs()
+	}
+	userAccounts, ok := c.UserAccountIDs[userID]
+	if !ok {
+		return nil
+	}
+	// Filter to only configured accounts
+	out := make([]string, 0, len(userAccounts))
+	for _, id := range userAccounts {
+		if _, exists := c.OmnibusMap[id]; exists {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // GetAccountType returns the account type for the given account ID.

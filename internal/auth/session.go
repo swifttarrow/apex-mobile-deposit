@@ -8,9 +8,13 @@ import (
 )
 
 const (
-	sessionName    = "operator_session"
-	operatorIDKey  = "operator_id"
+	sessionName     = "operator_session"
+	operatorIDKey   = "operator_id"
 	operatorNameKey = "display_name"
+
+	investorSessionName = "investor_session"
+	investorIDKey       = "investor_id"
+	investorNameKey     = "display_name"
 )
 
 // Store holds the session store. Use a 32-byte secret for production.
@@ -63,6 +67,37 @@ func SetOperatorSession(w http.ResponseWriter, r *http.Request, operatorID, disp
 // ClearSession removes the operator session.
 func ClearSession(w http.ResponseWriter, r *http.Request) error {
 	session, err := Store.Get(r, sessionName)
+	if err != nil {
+		return err
+	}
+	session.Options.MaxAge = -1
+	return session.Save(r, w)
+}
+
+// GetInvestorID returns the logged-in investor ID (user_id) from the session, or empty if not logged in.
+func GetInvestorID(r *http.Request) (string, error) {
+	session, err := Store.Get(r, investorSessionName)
+	if err != nil {
+		return "", err
+	}
+	id, _ := session.Values[investorIDKey].(string)
+	return id, nil
+}
+
+// SetInvestorSession stores the investor ID and display name in the session.
+func SetInvestorSession(w http.ResponseWriter, r *http.Request, investorID, displayName string) error {
+	session, err := Store.Get(r, investorSessionName)
+	if err != nil {
+		return err
+	}
+	session.Values[investorIDKey] = investorID
+	session.Values[investorNameKey] = displayName
+	return session.Save(r, w)
+}
+
+// ClearInvestorSession removes the investor session.
+func ClearInvestorSession(w http.ResponseWriter, r *http.Request) error {
+	session, err := Store.Get(r, investorSessionName)
 	if err != nil {
 		return err
 	}

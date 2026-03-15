@@ -333,7 +333,8 @@ func (h *DepositHandler) List(w http.ResponseWriter, r *http.Request) {
 	if accountID != "" {
 		transfers, err = h.transferRepo.ListTransfersByAccount(accountID, limit, offset, status)
 	} else {
-		accountIDs := h.fundingCfg.GetAccountIDs()
+		userID := ResolveMobileUserID(r)
+		accountIDs := h.fundingCfg.GetAccountIDsForUser(userID)
 		transfers, err = h.transferRepo.ListTransfersByAccounts(accountIDs, limit, offset, status)
 	}
 	if err != nil {

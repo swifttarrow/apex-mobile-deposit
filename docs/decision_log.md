@@ -33,6 +33,18 @@
 **Decision:** `ValidateSession` accepts any non-empty account ID as a valid session
 **Rationale:** Full session management (JWT, OAuth) is out of scope for this MVP. The stub validates presence only.
 
+## DL-010: User-specific accounts for mobile
+**Date:** 2026-03-15
+**Decision:** GET /accounts and GET /deposits (when no account_id) filter by optional `X-User-ID` header using config map `UserAccountIDs`. Mobile UI shows a "Signed in as" dropdown (Alice / Bob / All accounts).
+**Rationale:** Makes the Account dropdown and deposit history user-scoped for demo. No real auth; header is optional—when absent, behavior unchanged (all accounts).
+**Trade-off:** Production would resolve user from session/JWT and use a proper user→accounts store.
+
+## DL-011: Mobile/investor login
+**Date:** 2026-03-15
+**Decision:** Add investor login for mobile: `investors` table (id=user_id, username, password_hash, display_name), cookie session `investor_session`, POST /mobile/login, POST /mobile/logout, GET /mobile/me. GET /accounts and GET /deposits use ResolveMobileUserID (session over X-User-ID). Mobile UI shows login screen when unauthenticated; after sign-in, accounts and history are scoped to that user.
+**Rationale:** Aligns mobile flow with a real user identity; demo credentials alice/password and bob/password (seeded).
+**Trade-off:** Same cookie store as operator (different session name); production would use separate domain or token-based auth.
+
 ## DL-007: Contribution type default = "individual"
 **Date:** 2026-03-10
 **Decision:** All accounts default to `contribution_type = "individual"`

@@ -28,9 +28,12 @@ type AccountSummary struct {
 	ContributionRemaining float64 `json:"contribution_remaining,omitempty"` // limit - ytd (if applicable)
 }
 
-// List handles GET /accounts. Returns all configured accounts with display name, type, and contribution info.
+const userIDHeader = "X-User-ID"
+
+// List handles GET /accounts. Returns accounts for the current user (session or X-User-ID); otherwise all configured accounts.
 func (h *AccountsHandler) List(w http.ResponseWriter, r *http.Request) {
-	accountIDs := h.fundingCfg.GetAccountIDs()
+	userID := ResolveMobileUserID(r)
+	accountIDs := h.fundingCfg.GetAccountIDsForUser(userID)
 	year := funding.CurrentYear()
 
 	out := make([]AccountSummary, 0, len(accountIDs))
