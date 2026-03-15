@@ -54,13 +54,24 @@ func (h *SettlementHandler) SettlementHealth(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-// Trigger handles POST /settlement/trigger.
+// Status handles GET /settlement/status for the operator UI (settled vs unsettled overview).
+func (h *SettlementHandler) Status(w http.ResponseWriter, r *http.Request) {
+	status, err := h.engine.Status()
+	if err != nil {
+		log.Printf("settlement status: %v", err)
+		writeError(w, http.StatusInternalServerError, "settlement status failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+// Trigger handles POST /settlement/trigger. Runs settlement (no file write); reports are generated on-demand via GenerateReport.
 func (h *SettlementHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 	afterEOD := settlement.IsAfterEOD(h.nowFn())
-	batch, err := h.engine.GenerateSettlementFile()
+	batch, err := h.engine.RunSettlement()
 	if err != nil {
 		log.Printf("settlement trigger: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to generate settlement file")
+		writeError(w, http.StatusInternalServerError, "failed to run settlement")
 		return
 	}
 
@@ -72,4 +83,37 @@ func (h *SettlementHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 		"created_at":       batch.CreatedAt,
 		"after_eod_cutoff": afterEOD,
 	})
+}
+
+// GenerateReport handles POST /settlement/report. Returns a report of all settlements since the last report and updates the last-report timestamp.
+func (h *SettlementHandler) GenerateReport(w http.ResponseWriter, r *http.Request) {
+	report, lastReportAt, err := h.engine.ReportSinceLastReport()
+	if err != nil {
+		log.Printf("settlement report: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to generate report")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"report_id":     report.BatchID,
+		"total_count":   report.TotalCount,
+		"total_amount":  report.TotalAmount,
+		"created_at":    report.CreatedAt,
+		"transfers":     report.Transfers,
+		"last_report_at": lastReportAt.Format("2006-01-02T15:04:05Z07:00"),
+	})
+}
+
+// LastReport handles GET /settlement/report/last. Returns the last report timestamp for the UI.
+func (h *SettlementHandler) LastReport(w http.ResponseWriter, r *http.Request) {
+	t, err := h.engine.LastReportAt()
+	if err != nil {
+		log.Printf("settlement last report: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to get last report time")
+		return
+	}
+	var s string
+	if !t.IsZero() {
+		s = t.Format("2006-01-02T15:04:05Z07:00")
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"last_report_at": s})
 }

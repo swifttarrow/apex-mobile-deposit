@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/checkstream/checkstream/internal/api"
 	"github.com/checkstream/checkstream/internal/auth"
@@ -75,7 +76,7 @@ func main() {
 	vendorStub := vendor.NewStub("config/scenarios.json")
 	ledgerSvc := ledger.NewService(database)
 	fundingCfg := funding.NewConfig()
-	fundingSvc := funding.NewService(fundingCfg, transferRepo)
+	fundingSvc := funding.NewServiceWithContributionLookup(fundingCfg, transferRepo, transferRepo)
 	operatorRepo := operator.NewRepository(database)
 	if err := operatorRepo.SeedTestOperators(); err != nil {
 		log.Printf("warning: seed test operators: %v", err)
@@ -147,6 +148,9 @@ func main() {
 	mux.HandleFunc("GET /deposits", depoListOrPage(depositHandler.List, operatorPageHandler))
 	mux.HandleFunc("GET /deposits/{id}", depoGetOrPage(depositHandler.Get, operatorPageHandler))
 
+	accountsHandler := api.NewAccountsHandler(fundingCfg, transferRepo)
+	mux.HandleFunc("GET /accounts", accountsHandler.List)
+
 	// Operator auth routes (no auth required)
 	authHandler := api.NewAuthHandler(operatorRepo)
 	mux.HandleFunc("POST /operator/login", authHandler.Login)
@@ -155,7 +159,7 @@ func main() {
 	mux.HandleFunc("GET /operator/me", authHandler.Me)
 
 	// Operator routes (require login)
-	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
+	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc)
 	mux.HandleFunc("GET /operator/queue", auth.RequireOperator(operatorHandler.Queue))
 	mux.HandleFunc("GET /operator/audit", auth.RequireOperator(operatorHandler.Audit))
 	mux.HandleFunc("POST /operator/approve", auth.RequireOperator(operatorHandler.Approve))
@@ -167,6 +171,9 @@ func main() {
 	settlementHandler := api.NewSettlementHandler(settlementEngine)
 	settlementHandler.SetNowFunc(travelClock.Now)
 	mux.HandleFunc("GET /health/settlement", settlementHandler.SettlementHealth)
+	mux.HandleFunc("GET /settlement/status", auth.RequireOperator(settlementHandler.Status))
+	mux.HandleFunc("GET /settlement/report/last", auth.RequireOperator(settlementHandler.LastReport))
+	mux.HandleFunc("POST /settlement/report", auth.RequireOperator(settlementHandler.GenerateReport))
 	mux.HandleFunc("POST /settlement/trigger", auth.RequireOperator(settlementHandler.Trigger))
 
 	// Test-only time travel controls in operator portal.
@@ -274,6 +281,22 @@ func main() {
 		w.Write(b)
 	}
 	mux.HandleFunc("GET /checks/", checksHandler)
+
+	// Run settlement every minute (in-process cron)
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			batch, err := settlementEngine.RunSettlement()
+			if err != nil {
+				log.Printf("settlement cron: %v", err)
+				continue
+			}
+			if batch.TotalCount > 0 {
+				log.Printf("settlement cron: batch %s, %d transfers, $%.2f", batch.BatchID, batch.TotalCount, batch.TotalAmount)
+			}
+		}
+	}()
 
 	port := os.Getenv("PORT")
 	if port == "" {
