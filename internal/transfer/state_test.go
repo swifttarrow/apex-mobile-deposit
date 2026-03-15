@@ -14,6 +14,7 @@ func TestValidTransitions(t *testing.T) {
 		{StateApproved, StateFundsPosted},
 		{StateFundsPosted, StateCompleted},
 		{StateFundsPosted, StateReturned},
+		{StateCompleted, StateReturned},
 	}
 
 	for _, tc := range validCases {

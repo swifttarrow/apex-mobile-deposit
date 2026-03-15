@@ -18,11 +18,12 @@ const (
 
 // validTransitions defines the allowed state transitions.
 var validTransitions = map[State][]State{
-	StateRequested:  {StateValidating},
-	StateValidating: {StateRejected, StateAnalyzing},
-	StateAnalyzing:  {StateRejected, StateApproved},
-	StateApproved:   {StateFundsPosted},
+	StateRequested:   {StateValidating},
+	StateValidating:  {StateRejected, StateAnalyzing},
+	StateAnalyzing:   {StateRejected, StateApproved},
+	StateApproved:    {StateFundsPosted},
 	StateFundsPosted: {StateCompleted, StateReturned},
+	StateCompleted:   {StateReturned}, // return after settlement
 }
 
 // CanTransition returns true if transitioning from src to dst is valid.
