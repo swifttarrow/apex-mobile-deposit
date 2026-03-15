@@ -277,6 +277,7 @@
     .status-banner.error .status-banner-title { color: var(--color-error-foreground); }
     .status-banner.warning .status-banner-title { color: var(--color-warning-foreground); }
     .status-banner-sub { font-size: 13px; margin-top: 2px; color: var(--muted-foreground); }
+    .status-banner.warning .status-banner-sub { color: var(--color-warning-foreground); opacity: 0.9; }
 
     .info-card {
       margin: 16px 20px 0;
@@ -334,6 +335,11 @@
       font-size: 12px; font-weight: 600;
       padding: 3px 10px; border-radius: var(--radius-pill);
     }
+    .state-badge--submitted { background: var(--secondary); color: var(--muted-foreground); }
+    .state-badge--processing { background: var(--color-warning); color: var(--color-warning-foreground); }
+    .state-badge--success { background: var(--color-success); color: var(--color-success-foreground); }
+    .state-badge--error { background: var(--color-error); color: var(--color-error-foreground); }
+    /* legacy backend-state classes kept for compatibility */
     .state-badge.Completed, .state-badge.FundsPosted { background: var(--color-success); color: var(--color-success-foreground); }
     .state-badge.Rejected, .state-badge.Returned { background: var(--color-error); color: var(--color-error-foreground); }
     .state-badge.Analyzing { background: var(--color-warning); color: var(--color-warning-foreground); }
@@ -761,7 +767,32 @@ $('submitBtn').onclick = async () => {
   }
 };
 
-// ── Status Screen ──
+// ── Status (user-facing display) ──
+// Maps backend transfer state to display label and kind for UI.
+function getDisplayStatus(backendState) {
+  const s = String(backendState || '').trim();
+  switch (s) {
+    case 'Requested':
+      return { label: 'Submitted', kind: 'submitted', title: 'Deposit Submitted', sub: "We've received your check." };
+    case 'Validating':
+      return { label: 'Processing', kind: 'processing', title: 'Processing', sub: 'Your check is being validated.' };
+    case 'Analyzing':
+      return { label: 'Processing', kind: 'processing', title: 'Processing', sub: 'Your check is under review.' };
+    case 'Approved':
+      return { label: 'Processing', kind: 'processing', title: 'Processing', sub: 'Approved. Posting to your account.' };
+    case 'FundsPosted':
+      return { label: 'Funds Posted', kind: 'success', title: 'Funds Posted', sub: 'Credit has been posted to your account.' };
+    case 'Completed':
+      return { label: 'Completed', kind: 'success', title: 'Completed', sub: 'Settlement confirmed.' };
+    case 'Rejected':
+      return { label: 'Rejected', kind: 'error', title: 'Rejected', sub: '' };
+    case 'Returned':
+      return { label: 'Returned', kind: 'error', title: 'Returned', sub: '' };
+    default:
+      return { label: s || 'Unknown', kind: 'submitted', title: 'Deposit Submitted', sub: "We've received your check." };
+  }
+}
+
 function titleCaseWords(str) {
   return str
     .split(' ')
@@ -811,22 +842,35 @@ function buildFailureDetails(responseBody, transfer) {
 }
 
 function showStatusScreen(transfer, kind, failure) {
-  // Banner
   const banner = $('statusBanner');
-  banner.className = 'status-banner ' + kind;
   const iconEl = $('statusBannerIcon');
 
-  if (kind === 'success') {
-    $('statusBannerTitle').textContent = 'Deposit Submitted';
-    $('statusBannerSub').textContent = 'Your check is being validated';
-    iconEl.setAttribute('stroke', '#004D1A');
-    iconEl.innerHTML = '<path d="M20 6L9 17l-5-5"/>';
-  } else if (kind === 'error') {
+  if (kind === 'error' && (failure || (transfer && (transfer.state === 'Rejected' || transfer.state === 'Returned')))) {
+    banner.className = 'status-banner error';
     const details = failure || buildFailureDetails(null, transfer);
     $('statusBannerTitle').textContent = details.title;
     $('statusBannerSub').textContent = details.explanation;
     iconEl.setAttribute('stroke', '#8C1C00');
     iconEl.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+  } else if (transfer && transfer.state) {
+    const status = getDisplayStatus(transfer.state);
+    const isError = status.kind === 'error';
+    banner.className = 'status-banner ' + (isError ? 'error' : status.kind === 'success' ? 'success' : 'warning');
+    $('statusBannerTitle').textContent = status.title;
+    $('statusBannerSub').textContent = status.sub || '';
+    if (isError) {
+      iconEl.setAttribute('stroke', '#8C1C00');
+      iconEl.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+    } else {
+      iconEl.setAttribute('stroke', status.kind === 'success' ? '#004D1A' : '#804200');
+      iconEl.innerHTML = status.kind === 'success' ? '<path d="M20 6L9 17l-5-5"/>' : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>';
+    }
+  } else {
+    banner.className = 'status-banner success';
+    $('statusBannerTitle').textContent = 'Deposit Submitted';
+    $('statusBannerSub').textContent = "We've received your check.";
+    iconEl.setAttribute('stroke', '#004D1A');
+    iconEl.innerHTML = '<path d="M20 6L9 17l-5-5"/>';
   }
 
   if (transfer) {
@@ -866,13 +910,14 @@ function renderHistory(deposits) {
   list.innerHTML = deposits.map((d, i) => {
     const num = String(1038 + i).padStart(4,'0');
     const date = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    const status = getDisplayStatus(d.state);
     return `<div class="deposit-card" data-id="${d.id}">
       <div class="deposit-card-left">
         <div class="check-num">Check #${num}</div>
         <div class="amount">$${(d.amount||0).toFixed(2)}</div>
       </div>
       <div class="deposit-card-right">
-        <span class="state-badge ${d.state}">${d.state}</span>
+        <span class="state-badge state-badge--${status.kind}">${status.label}</span>
         <span class="deposit-date">${date}</span>
       </div>
     </div>`;
@@ -882,9 +927,9 @@ function renderHistory(deposits) {
       const t = state.historyDeposits.find(x => x.id === card.dataset.id);
       if (t) {
         state.currentTransfer = t;
-        const isFailed = t.state === 'Rejected' || t.state === 'Returned';
-        const kind = isFailed ? 'error' : 'success';
-        showStatusScreen(t, kind, isFailed ? buildFailureDetails(null, t) : null);
+        const status = getDisplayStatus(t.state);
+        const kind = status.kind === 'error' ? 'error' : 'success';
+        showStatusScreen(t, kind, status.kind === 'error' ? buildFailureDetails(null, t) : null);
       }
     };
   });
@@ -892,11 +937,13 @@ function renderHistory(deposits) {
 
 $('historySearch').oninput = (e) => {
   const q = e.target.value.toLowerCase();
-  const filtered = state.historyDeposits.filter(d =>
-    d.account_id?.toLowerCase().includes(q) ||
-    d.state?.toLowerCase().includes(q) ||
-    String(d.amount).includes(q)
-  );
+  const filtered = state.historyDeposits.filter(d => {
+    const status = getDisplayStatus(d.state);
+    return d.account_id?.toLowerCase().includes(q) ||
+      d.state?.toLowerCase().includes(q) ||
+      status.label?.toLowerCase().includes(q) ||
+      String(d.amount).includes(q);
+  });
   renderHistory(filtered);
 };
 
