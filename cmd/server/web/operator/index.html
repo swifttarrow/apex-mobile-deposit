@@ -66,6 +66,21 @@
       font-family: var(--font-mono);
       letter-spacing: -0.02em;
     }
+    .sidebar-header-time {
+      display: block;
+      margin-top: 10px;
+      padding: 2px 0 2px 8px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--sidebar-foreground);
+      cursor: pointer;
+      border: none;
+      background: none;
+      text-align: left;
+      width: 100%;
+    }
+    .sidebar-header-time:hover { color: var(--foreground); }
     .sidebar-section { padding: 16px 12px 4px; }
     .sidebar-section-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.07em; padding: 0 8px 8px; }
     .nav-item {
@@ -293,6 +308,7 @@
       </svg>
       CHECKDEPOT
     </div>
+    <button type="button" class="sidebar-header-time" id="sidebarHeaderTime" title="Click to open clock">—</button>
   </div>
 
   <div class="sidebar-section">
@@ -739,6 +755,8 @@ function renderClockUI() {
   if (sidebarCurrent) sidebarCurrent.textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
   const sidebarMode = $('sidebarClockMode');
   if (sidebarMode) sidebarMode.textContent = `Mode: ${mode} · ${time.toLocaleDateString('en-US')}`;
+  const headerTime = $('sidebarHeaderTime');
+  if (headerTime) headerTime.textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
   renderAnalogClock('sidebar', time);
   $('clockModalCurrent').textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
   $('clockModalMode').textContent = `Mode: ${mode} · ${fmtDateTime(time.toISOString())}`;
@@ -1073,8 +1091,7 @@ $('triggerSettlementBtn').onclick = async () => {
 };
 
 async function loadClockStatus() {
-  if (!$('clockWidgetBtn')) return;
-  $('clockWidgetBtn').disabled = !isTestOperator();
+  if ($('clockWidgetBtn')) $('clockWidgetBtn').disabled = !isTestOperator();
   const sidebarMode = $('sidebarClockMode');
   if (sidebarMode) sidebarMode.title = isTestOperator()
     ? 'Click clock to open time-travel controls.'
@@ -1104,6 +1121,8 @@ async function loadClockStatus() {
     if (sc) sc.textContent = 'Clock unavailable';
     const sm = $('sidebarClockMode');
     if (sm) sm.textContent = `Error: ${e.message}`;
+    const ht = $('sidebarHeaderTime');
+    if (ht) ht.textContent = '—';
   }
 }
 
@@ -1162,15 +1181,19 @@ $('clockFreezeBtn').onclick = () => updateClock('freeze');
 $('clockResumeBtn').onclick = () => updateClock('resume');
 $('clockDisplayAnalogBtn').onclick = () => setClockDisplayMode('analog');
 $('clockDisplayDigitalBtn').onclick = () => setClockDisplayMode('digital');
-if ($('clockWidgetBtn')) $('clockWidgetBtn').onclick = () => {
-  if (!isTestOperator()) return;
+function openClockModal() {
   $('clockModalOverlay').classList.add('open');
   $('clockModalMsg').className = 'action-feedback';
   $('clockModalMsg').style.display = 'none';
   $('clockModalMsg').textContent = '';
   setClockDisplayMode(clockDisplayMode);
   $('clockSetInput').value = toLocalInputValue(settlementClock.now instanceof Date ? settlementClock.now : new Date());
+}
+if ($('clockWidgetBtn')) $('clockWidgetBtn').onclick = () => {
+  if (!isTestOperator()) return;
+  openClockModal();
 };
+if ($('sidebarHeaderTime')) $('sidebarHeaderTime').onclick = openClockModal;
 $('clockModalCloseBtn').onclick = () => $('clockModalOverlay').classList.remove('open');
 $('clockModalOverlay').onclick = (e) => {
   if (e.target === $('clockModalOverlay')) $('clockModalOverlay').classList.remove('open');
