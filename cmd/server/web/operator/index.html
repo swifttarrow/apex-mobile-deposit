@@ -167,6 +167,8 @@
     .badge-high { background: var(--color-error); color: var(--color-error-foreground); }
     .badge-medium { background: var(--color-warning); color: var(--color-warning-foreground); }
     .badge-low { background: var(--secondary); color: var(--muted-foreground); }
+    .badge-settled { background: var(--color-success); color: var(--color-success-foreground); }
+    .badge-pending-settlement { background: var(--color-warning); color: var(--color-warning-foreground); }
     .flag-reason { background: var(--color-warning); color: var(--color-warning-foreground); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); display: inline-block; }
     .flag-reason.micr { background: var(--color-error); color: var(--color-error-foreground); }
     .flag-reason.duplicate { background: var(--secondary); color: var(--muted-foreground); }
@@ -514,12 +516,30 @@
     <div class="detail-inner">
       <div class="queue-header">
         <div class="queue-title">Settlement</div>
-        <div class="queue-subtitle">Trigger end-of-day settlement batch</div>
+        <div class="queue-subtitle">View settlement status and generate reports of settled transfers</div>
+      </div>
+      <div class="stats-row" style="padding:20px 28px 0">
+        <div class="stat-card">
+          <div class="stat-label">Pending settlement (Funds Posted)</div>
+          <div class="stat-value-row">
+            <div class="stat-number" id="settlementPendingCount">—</div>
+            <span class="stat-badge review" id="settlementPendingBadge">—</span>
+          </div>
+          <div style="font-size:13px;color:var(--muted-foreground);margin-top:6px" id="settlementPendingAmount">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Settled (Completed)</div>
+          <div class="stat-value-row">
+            <div class="stat-number" id="settlementSettledCount">—</div>
+          </div>
+          <div style="font-size:13px;color:var(--muted-foreground);margin-top:6px" id="settlementSettledAmount">—</div>
+        </div>
       </div>
       <div class="d-card" style="margin:24px 28px;max-width:560px">
-        <div class="d-card-title">Settlement Trigger</div>
-        <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px">Generates a settlement file for all Funds Posted transfers and writes it to disk.</p>
-        <button class="action-btn btn-approve" id="triggerSettlementBtn">Trigger Settlement</button>
+        <div class="d-card-title">Settlement Report</div>
+        <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:8px">Generate a report of all settlements since the last report. Settlement batches run automatically every minute.</p>
+        <p style="font-size:12px;color:var(--muted-foreground);margin-bottom:16px" id="lastReportAtLine">Last report: —</p>
+        <button class="action-btn btn-approve" id="generateReportBtn">Generate Report</button>
         <div id="settlementResult" class="action-feedback" style="margin-top:12px"></div>
       </div>
     </div>
@@ -1076,18 +1096,44 @@ async function loadSettlementView() {
   $('clockModalMsg').className = 'action-feedback';
   $('clockModalMsg').style.display = 'none';
   $('clockModalMsg').textContent = '';
+  // Load settlement status (pending vs settled, last report)
+  try {
+    const r = await fetch(`${apiBase()}/settlement/status`, fetchOpts());
+    if (r.ok) {
+      const s = await r.json();
+      $('settlementPendingCount').textContent = s.unsettled_count ?? '—';
+      $('settlementPendingAmount').textContent = typeof s.unsettled_amount === 'number' ? fmt(s.unsettled_amount) + ' total' : '—';
+      $('settlementPendingBadge').textContent = (s.unsettled_count || 0) > 0 ? 'Awaiting batch' : 'None';
+      $('settlementPendingBadge').style.display = (s.unsettled_count || 0) > 0 ? 'inline' : 'none';
+      $('settlementSettledCount').textContent = s.settled_count ?? '—';
+      $('settlementSettledAmount').textContent = typeof s.settled_amount === 'number' ? fmt(s.settled_amount) + ' total' : '—';
+      const lastReportEl = $('lastReportAtLine');
+      if (lastReportEl) lastReportEl.textContent = s.last_report_at ? 'Last report: ' + fmtDateTime(s.last_report_at) : 'Last report: —';
+    } else {
+      $('settlementPendingCount').textContent = '—';
+      $('settlementPendingAmount').textContent = '—';
+      $('settlementSettledCount').textContent = '—';
+      $('settlementSettledAmount').textContent = '—';
+      if ($('lastReportAtLine')) $('lastReportAtLine').textContent = 'Last report: —';
+    }
+  } catch (e) {
+    $('settlementPendingCount').textContent = '—';
+    $('settlementSettledCount').textContent = '—';
+    if ($('lastReportAtLine')) $('lastReportAtLine').textContent = 'Last report: —';
+  }
 }
-$('triggerSettlementBtn').onclick = async () => {
+$('generateReportBtn').onclick = async () => {
   const el = $('settlementResult');
   el.className = 'action-feedback';
-  el.textContent = 'Triggering…';
+  el.textContent = 'Generating…';
   el.style.display = 'block';
   try {
-    const r = await fetch(`${apiBase()}/settlement/trigger`, { method: 'POST', ...fetchOpts() });
+    const r = await fetch(`${apiBase()}/settlement/report`, { method: 'POST', ...fetchOpts() });
     const j = await r.json();
     if (r.ok) {
       el.className = 'action-feedback ok';
-      el.textContent = `Settlement triggered. Batch: ${j.batch_id || '—'}, ${j.total_count ?? 0} transfers, $${(j.total_amount ?? 0).toFixed(2)}`;
+      el.textContent = `Report generated. ${j.total_count ?? 0} transfers since last report, $${(j.total_amount ?? 0).toFixed(2)} total. Last report at: ${j.last_report_at ? fmtDateTime(j.last_report_at) : '—'}`;
+      loadSettlementView(); // refresh status and last report
     } else {
       el.className = 'action-feedback err';
       el.textContent = j.error || `Error ${r.status}`;
@@ -1254,13 +1300,17 @@ async function loadDeposits() {
       const tid = (a.transfer_id || '').trim();
       const clickable = tid ? ' clickable' : '';
       const dataId = tid ? ` data-transfer-id="${tid.replace(/"/g, '&quot;')}"` : '';
+      const settled = a.settled === true;
+      const settlementBadge = settled
+        ? '<span class="badge badge-settled">Settled</span>'
+        : (a.transfer_state === 'FundsPosted' ? '<span class="badge badge-pending-settlement">Pending settlement</span>' : '');
       return `<div class="audit-item${clickable}"${dataId} title="${tid ? 'View deposit' : ''}">
         <div class="audit-action-wrap">
           <span class="audit-action ${actionClass}">${label}</span>
           ${sub ? `<span class="audit-action-sub">${sub}</span>` : ''}
         </div>
         <div>
-          <div>DEP-${(a.transfer_id || '').slice(0,8).toUpperCase()} · ${operatorDisplay}</div>
+          <div>DEP-${(a.transfer_id || '').slice(0,8).toUpperCase()} · ${operatorDisplay} ${settlementBadge}</div>
           <div class="audit-meta">${fmtDate(a.created_at)}${a.note ? ' · ' + a.note : ''}</div>
         </div>
       </div>`;
