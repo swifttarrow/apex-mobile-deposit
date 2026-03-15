@@ -2,7 +2,7 @@
 
 ## Overview
 
-Post-MVP enhancements for the Scenario Showcase and observability. This plan documents what is **already implemented** (UI workflow diagram) and what is **proposed** (audit trail).
+Post-MVP enhancements for the Scenario Showcase and observability. This plan documents what is **already implemented** (UI workflow diagram, travel clock) and what is **proposed** (audit trail).
 
 ---
 
@@ -78,7 +78,38 @@ Completed → Returned (Return + fee)
 
 ---
 
-## Stretch Goal 2: Audit Trail — Proposed
+## Stretch Goal 2: Travel Clock — Implemented ✓
+
+### Summary
+
+App-level time travel for testing and demos: set arbitrary time, freeze, or resume. Used by the transfer repo, operator repo, and settlement engine so EOD cutoff (6:30 PM CT) and settlement batching can be exercised without waiting or mocking every call site. See [DL-013](../decision_log.md#dl-013-travel-clock-for-testing).
+
+### Implementation Details
+
+**Location:** `internal/clock/clock.go`, `internal/api/clock.go`
+
+**API (operator auth required; test operators only):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/operator/clock` | Return current app time: `{ now, frozen, mode }` |
+| POST | `/operator/clock` | Body: `{ "action": "set" \| "freeze" \| "resume", "time": "<RFC3339>" }` (time required for `set`) |
+
+**Behavior:**
+
+- **TravelClock** — `Now()` returns app time; `Set(t)`, `Freeze()`, `Resume()` control it. When frozen, `Set(t)` updates the frozen timestamp.
+- **Authorization** — Only operators whose ID has the `op-` prefix (seeded test accounts) can use the clock; guest and other operators receive 403.
+- Settlement and EOD cutoff use the clock, so demos can “travel” to before/after 6:30 PM CT and re-run settlement scenarios.
+
+### Success criteria (met)
+
+- [x] GET/POST `/operator/clock` exposed and protected (login + test-operator check)
+- [x] Settlement trigger and EOD eligibility use TravelClock
+- [x] Tests (e.g. `TestSettlementTrigger_UsesTravelClock`, `TestClockHandler_*`) verify behavior
+
+---
+
+## Stretch Goal 3: Audit Trail — Proposed
 
 ### Objective
 
@@ -160,7 +191,7 @@ When a scenario is triggered, capture an audit trail of all events (HTTP request
 
 ---
 
-## Stretch Goal 3: Pencil Design Implementation — Proposed
+## Stretch Goal 4: Pencil Design Implementation — Proposed
 
 ### Objective
 

@@ -90,7 +90,7 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 **Verification:**
 
-- Submit deposit with account/params triggering `amount_mismatch` (e.g. entered $1500, OCR $150)
+- Submit deposit with account `ACC-MISMATCH` (or params triggering `amount_mismatch`; e.g. entered $1500, OCR $150)
 - Transfer reaches `Analyzing` (flagged)
 - Operator queue shows both entered and OCR amounts
 - Operator approves → ledger posts entered amount (or policy-defined amount), flow continues
@@ -221,7 +221,7 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 - (When logged in) Operator queue lists deposits in `Analyzing` with flags (MICR fail, amount mismatch)
 - Each row shows: check images (front/back), MICR data, entered amount, OCR amount (if mismatch), risk context
-- Search/filter by date, account, amount works (query params: `date`, `account`, `amount_min`, `amount_max`, `limit`, `offset`)
+- Search/filter by date, account, amount works (query params: `date`, `account`, `amount_min`, `amount_max`, `status`, `limit`, `offset`; queue returns only `Analyzing` when status is omitted or `status=Analyzing`)
 
 ---
 
@@ -232,8 +232,8 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 **Verification:**
 
 - Operator approve or reject creates `operator_actions` record
-- Record includes: operator identity, action (approve/reject), timestamp, transfer ID
-- Logs are queryable for compliance
+- Record includes: operator identity (from session), action (approve/reject), timestamp, transfer ID
+- Logs are queryable via `GET /operator/audit` (e.g. `?limit=50&action=approved|reject&operator_id=...`)
 
 ---
 
@@ -256,7 +256,7 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 **Verification:**
 
-- EOD settlement run produces file (X9 ICL or structured JSON)
+- EOD settlement run produces file (X9 ICL or equivalent; implementation uses structured JSON per [DL-004](decision_log.md#dl-004-x9-like-json-settlement-files))
 - File includes: MICR data, check images, amounts, batch metadata
 - File generation completes within 5 seconds of EOD trigger
 
@@ -440,5 +440,6 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 **Verification (non-blocking for MVP):**
 
 - Same `X-Idempotency-Key` on two deposit submissions → second returns cached response, no second transfer
+- If `X-Idempotency-Key` is omitted, the server generates a key per request; retries without a client-supplied key are not deduplicated (see [DL-015](decision_log.md#dl-015-idempotency-key-optional-for-deposits))
 - Same return notification processed twice → reversal posted once, no double fee
 
