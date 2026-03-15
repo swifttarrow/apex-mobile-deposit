@@ -46,5 +46,13 @@
 ### L-004: No Idempotency Key Expiration
 - Cached idempotency responses are stored indefinitely. Production should expire keys after 24 hours per RFC guidance.
 
-### L-005: Return from Completed Not Implemented
-- The return service accepts transfers in either `FundsPosted` or `Completed`, but the state machine in `internal/transfer/state.go` only allows `FundsPosted → Returned`. A transfer in `Completed` cannot transition to `Returned`; `ProcessReturn` will fail with an invalid-transition error. Only returns from `FundsPosted` are supported until `validTransitions` includes `Completed → Returned`.
+### L-005: Investor Notification Stub
+- On check return, the system logs a "RETURN NOTIFICATION" line (transfer ID, account, reason, fee). There is no email, push, or in-app notification to the investor. Production would integrate with a notification service.
+
+### L-006: Settlement Bank Acknowledgment
+- `SettlementAckAt` is set when the batch file is generated (EOD trigger). The system does not receive or track a formal acknowledgment from the Settlement Bank. Production would poll or receive a callback for bank confirmation.
+
+## Logging
+
+### Redacted logs (no real PII)
+- All data in this demo is synthetic; no real PII, account numbers, or check images are used or logged. DEPOSIT_TRACE and other logs include only transfer_id, synthetic account_id, and stage/status fields. Production would require explicit redaction of any sensitive fields in log output.

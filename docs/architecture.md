@@ -125,7 +125,7 @@ Tables:
 
 | Area | Routes |
 |------|--------|
-| Health | `GET /health` |
+| Health | `GET /health`, `GET /health/settlement` (monitoring: unsettled count, EOD cutoff) |
 | Vendor | `POST /vendor/validate` (stub) |
 | Deposits | `POST /deposits` (idempotent), `GET /deposits`, `GET /deposits/{id}` (content negotiation) |
 | Operator auth | `POST /operator/login`, `POST /operator/guest`, `POST /operator/logout`, `GET /operator/me` |

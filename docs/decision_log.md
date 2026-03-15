@@ -79,3 +79,8 @@
 **Decision:** If `X-Idempotency-Key` is omitted on `POST /deposits`, the server generates a new UUID and uses it as the idempotency key for that request. Response is still cached and replayed for duplicate keys.
 **Rationale:** Clients that do not send a key still get exactly-once semantics per request (each request gets a new key). Clients that send a key get replay of the same response on retries.
 **Trade-off:** Without a client-supplied key, retries are not deduplicated across duplicate submissions; acceptable for MVP.
+
+## DL-016: Per-deposit decision trace (observability)
+**Date:** 2026-03-15
+**Decision:** Structured JSON log lines prefixed with `DEPOSIT_TRACE` for each deposit at key stages: vendor_response, vendor_flagged, business_rules (with rule if rejected), funds_posted, operator_action (approve/reject), settlement_status. No PII; only transfer_id, account_id (synthetic), and stage-specific fields.
+**Rationale:** Meets requirement for "per-deposit decision trace: inputs → Vendor response → business rules → operator actions → settlement status" and supports debugging without a separate trace store for MVP.

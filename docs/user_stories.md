@@ -354,7 +354,7 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 - Reversal posted (amount + $30 fee), transfer → Returned
 - Ledger reflects reversal
 
-**Implementation note:** Return service accepts both `FundsPosted` and `Completed`, but the state machine currently allows only `FundsPosted → Returned`. If return from `Completed` fails with invalid transition, see [L-005](risks_limitations.md#l-005-return-from-completed-not-implemented).
+**Implementation note:** Return service accepts both `FundsPosted` and `Completed`; the state machine allows both `FundsPosted → Returned` and `Completed → Returned`.
 
 ---
 
