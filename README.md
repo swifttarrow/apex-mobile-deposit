@@ -29,6 +29,8 @@ Returns:
   POST /returns → FundsPosted/Completed → Returned + reversal entry
 ```
 
+**Stubs (MVP):** Investor notification on return is log-only; settlement bank acknowledgment is the batch-generation timestamp (no bank callback). See [docs/risks_limitations.md](docs/risks_limitations.md). **Logging:** No real PII is logged; all data is synthetic. DEPOSIT_TRACE lines include optional `source` (e.g. `mobile`, `api`) for debugging.
+
 ## Transfer States
 
 ```
@@ -116,6 +118,7 @@ Or use the curl commands in `scripts/demo.sh` individually.
 | POST | /returns | Process a check return |
 | GET | /ledger | List ledger entries |
 | GET | /accounts/:id/balance | Get account balance |
+| GET | /health/settlement | Settlement monitoring (unsettled count, EOD cutoff) |
 | POST | /vendor/validate | Vendor stub endpoint |
 
 ## Environment Variables
