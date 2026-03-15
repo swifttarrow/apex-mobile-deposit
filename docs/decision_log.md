@@ -64,10 +64,11 @@
 **Decision:** `POST /operator/guest` creates an ephemeral session with a generated operator ID (e.g. `guest-xxxxxxxx`). No DB record; used for demo without seeded accounts.
 **Rationale:** Allows trying the operator UI (queue, approve/reject, settlement) without configuring operator accounts. `/operator/me` returns synthetic guest identity.
 
-## DL-013: Travel clock for testing
+## DL-013: Travel clock for testing (superseded)
 **Date:** 2026-03-12
-**Decision:** `internal/clock.TravelClock` provides app-level time: set arbitrary time, freeze, resume. Used by transfer repo, operator repo, and settlement engine. Exposed in operator portal at `GET/POST /operator/clock` for test-only time travel.
-**Rationale:** EOD cutoff (6:30 PM CT) and settlement batching are time-dependent; tests and demos need reproducible “business day” behavior without waiting or mocking every call site.
+**Decision:** `internal/clock.TravelClock` provided app-level time: set arbitrary time, freeze, resume. Exposed at `GET/POST /operator/clock` for test-only time travel.
+**Superseded (2026-03-15):** Time travel removed. Operator UI keeps the clock display (local time only). Run `make seed-deposits` to insert 25 deposits with created_at before/after 6:30 PM CT for settlement demo.
+**Rationale (original):** EOD cutoff (6:30 PM CT) and settlement batching are time-dependent; tests and demos need reproducible “business day” behavior without waiting or mocking every call site.
 
 ## DL-014: Content negotiation for operator SPA
 **Date:** 2026-03-12

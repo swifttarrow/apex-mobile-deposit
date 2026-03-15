@@ -100,9 +100,17 @@ docker-compose up
 ## How to Demo
 
 1. Start the server: `make dev`
-2. Run the demo script: `bash scripts/demo.sh`
+2. In another terminal, run the **browser demo** (recommended):
+   ```bash
+   make demo-install   # once: install Node deps + Chromium
+   make demo           # runs Playwright: mobile deposits → operator review → settlement
+   ```
+   To **watch** the demo in a visible browser, run `make demo-headed` (or `cd e2e && npm run demo:headed`). To slow it down, pass `SLOW=500` (milliseconds between actions), e.g. `make demo-headed SLOW=500`, or use `npm run demo:slow` (default 500 ms).
+   The demo drives the **mobile app** and **operator dashboard**: it logs in as test user `joe` / `password`, submits deposits, approves flagged items, and runs settlement.
 
-Or use the curl commands in `scripts/demo.sh` individually.
+   To demo **settlement batching and EOD rollover** (some deposits before 6:30 PM CT, some after), seed sample data first: `make seed-deposits` (inserts 25 deposits in `FundsPosted` state with `created_at` spread before/after the cutoff), then run settlement from the operator UI.
+
+Alternatively, run the **CLI demo**: `bash scripts/demo.sh` (or use the curl commands in it individually).
 
 ## API Endpoints
 

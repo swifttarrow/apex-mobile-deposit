@@ -312,7 +312,7 @@
       </svg>
       CHECKDEPOT
     </div>
-    <button type="button" class="sidebar-header-time" id="sidebarHeaderTime" title="Click to open clock">—</button>
+    <button type="button" class="sidebar-header-time" id="sidebarHeaderTime" title="Current time" disabled>—</button>
   </div>
 
   <div class="sidebar-section">
@@ -545,54 +545,6 @@
     </div>
   </div>
 
-  <div class="clock-modal-overlay" id="clockModalOverlay">
-    <div class="clock-modal">
-      <div class="clock-modal-title">Adjust App Time</div>
-      <div class="clock-modal-subtitle">Set, freeze, or resume time travel for this test session.</div>
-      <div class="clock-display-switch">
-        <button class="clock-display-btn active" id="clockDisplayAnalogBtn">Clock</button>
-        <button class="clock-display-btn" id="clockDisplayDigitalBtn">Digital</button>
-      </div>
-      <div class="clock-display-panel active" id="clockDisplayAnalogPanel">
-        <div class="modal-analog-wrap">
-          <div class="analog-clock" id="modalAnalogClock">
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(0deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(30deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(60deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(90deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(120deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(150deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(180deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(210deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(240deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(270deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(300deg)"></span>
-            <span class="clock-mark" style="transform:translateX(-50%) rotate(330deg)"></span>
-            <span class="clock-hand hour" id="modalHourHand"></span>
-            <span class="clock-hand minute" id="modalMinuteHand"></span>
-            <span class="clock-hand second" id="modalSecondHand"></span>
-            <span class="clock-center"></span>
-          </div>
-          <div class="modal-analog-meta" id="clockModalMode">—</div>
-        </div>
-      </div>
-      <div class="clock-display-panel" id="clockDisplayDigitalPanel">
-        <div class="clock-time" id="clockModalCurrent">—</div>
-        <div class="clock-mode" id="clockModalDigitalMeta">—</div>
-      </div>
-      <div class="clock-modal-controls">
-        <input class="clock-input" id="clockSetInput" type="datetime-local" step="1">
-        <button class="page-btn" id="clockSetBtn">Set Time</button>
-        <button class="page-btn" id="clockFreezeBtn">Freeze</button>
-        <button class="page-btn" id="clockResumeBtn">Resume</button>
-      </div>
-      <div id="clockModalMsg" class="action-feedback"></div>
-      <div class="clock-modal-footer">
-        <button class="page-btn" id="clockModalCloseBtn">Close</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ── Deposits View ── -->
   <div class="view" id="viewDeposits">
     <div class="detail-inner">
@@ -635,9 +587,8 @@ let detailOpenedFromDeposits = false;
 let currentPage = 0;
 const PAGE_SIZE = 10;
 let activeFilter = 'all';
-let settlementClock = { now: null, mode: 'running', source: 'system' };
+let settlementClock = { now: null };
 let clockTickTimer = null;
-let clockDisplayMode = 'analog';
 const DEPOSITS_PATH_PREFIX = '/deposits/';
 const ROUTES = {
   '/': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
@@ -695,10 +646,6 @@ function fmtDateTime(s) {
 function isTestOperator() {
   return !!(currentOperator && currentOperator.operator_id && currentOperator.operator_id.startsWith('op-'));
 }
-function toLocalInputValue(d) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 function setHand(id, degrees) {
   const el = $(id);
   if (!el) return;
@@ -715,38 +662,21 @@ function renderAnalogClock(prefix, time) {
   setHand(`${prefix}MinuteHand`, minuteDeg);
   setHand(`${prefix}SecondHand`, secondDeg);
 }
-function setClockDisplayMode(mode) {
-  clockDisplayMode = mode === 'digital' ? 'digital' : 'analog';
-  $('clockDisplayAnalogBtn').classList.toggle('active', clockDisplayMode === 'analog');
-  $('clockDisplayDigitalBtn').classList.toggle('active', clockDisplayMode === 'digital');
-  $('clockDisplayAnalogPanel').classList.toggle('active', clockDisplayMode === 'analog');
-  $('clockDisplayDigitalPanel').classList.toggle('active', clockDisplayMode === 'digital');
-}
 function renderClockUI() {
   const time = settlementClock.now instanceof Date ? settlementClock.now : new Date();
-  const mode = settlementClock.mode || 'running';
   const sidebarCurrent = $('sidebarClockCurrent');
   if (sidebarCurrent) sidebarCurrent.textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
   const sidebarMode = $('sidebarClockMode');
-  if (sidebarMode) sidebarMode.textContent = `Mode: ${mode} · ${time.toLocaleDateString('en-US')}`;
+  if (sidebarMode) sidebarMode.textContent = time.toLocaleDateString('en-US');
   const headerTime = $('sidebarHeaderTime');
   if (headerTime) headerTime.textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
   renderAnalogClock('sidebar', time);
-  $('clockModalCurrent').textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
-  $('clockModalMode').textContent = `Mode: ${mode} · ${fmtDateTime(time.toISOString())}`;
-  $('clockModalDigitalMeta').textContent = `Mode: ${mode} · ${fmtDateTime(time.toISOString())}`;
-  renderAnalogClock('modal', time);
-  $('clockFreezeBtn').disabled = mode === 'frozen';
-  $('clockResumeBtn').disabled = mode !== 'frozen';
 }
 function startClockTicker() {
   if (clockTickTimer) clearInterval(clockTickTimer);
   clockTickTimer = setInterval(() => {
-    if (!(settlementClock.now instanceof Date)) return;
-    if ((settlementClock.mode || 'running') === 'running') {
-      settlementClock.now = new Date(settlementClock.now.getTime() + 1000);
-      renderClockUI();
-    }
+    settlementClock.now = new Date();
+    renderClockUI();
   }, 1000);
 }
 function riskLevel(t) {
@@ -1144,117 +1074,11 @@ $('generateReportBtn').onclick = async () => {
   }
 };
 
-async function loadClockStatus() {
-  if ($('clockWidgetBtn')) $('clockWidgetBtn').disabled = !isTestOperator();
-  const sidebarMode = $('sidebarClockMode');
-  if (sidebarMode) sidebarMode.title = isTestOperator()
-    ? 'Click clock to open time-travel controls.'
-    : 'Read-only. Time travel controls are available for test users only.';
-  try {
-    if (isTestOperator()) {
-      const r = await fetch(`${apiBase()}/operator/clock`, fetchOpts());
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-      settlementClock = {
-        now: new Date(j.now),
-        mode: j.mode || 'running',
-        source: 'app',
-      };
-    } else {
-      settlementClock = {
-        now: new Date(),
-        mode: 'running',
-        source: 'system',
-      };
-    }
-    $('clockSetInput').value = toLocalInputValue(settlementClock.now);
-    renderClockUI();
-    startClockTicker();
-  } catch (e) {
-    const sc = $('sidebarClockCurrent');
-    if (sc) sc.textContent = 'Clock unavailable';
-    const sm = $('sidebarClockMode');
-    if (sm) sm.textContent = `Error: ${e.message}`;
-    const ht = $('sidebarHeaderTime');
-    if (ht) ht.textContent = '—';
-  }
+function loadClockStatus() {
+  settlementClock.now = new Date();
+  renderClockUI();
+  startClockTicker();
 }
-
-async function updateClock(action, value) {
-  const msg = $('clockModalMsg');
-  msg.className = 'action-feedback';
-  msg.textContent = 'Updating…';
-  msg.style.display = 'block';
-  try {
-    const payload = { action };
-    if (value) payload.time = value;
-    const r = await fetch(`${apiBase()}/operator/clock`, {
-      ...fetchOpts(),
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    msg.className = 'action-feedback ok';
-    msg.textContent = `Clock updated: ${j.mode} (${fmtDateTime(j.now)})`;
-    settlementClock = {
-      now: new Date(j.now),
-      mode: j.mode || 'running',
-      source: 'app',
-    };
-    $('clockSetInput').value = toLocalInputValue(settlementClock.now);
-    renderClockUI();
-    await loadClockStatus();
-  } catch (e) {
-    msg.className = 'action-feedback err';
-    msg.textContent = `Error: ${e.message}`;
-  }
-}
-
-$('clockSetBtn').onclick = async () => {
-  const raw = $('clockSetInput').value;
-  if (!raw) {
-    const msg = $('clockModalMsg');
-    msg.className = 'action-feedback err';
-    msg.textContent = 'Pick a date and time first.';
-    msg.style.display = 'block';
-    return;
-  }
-  const ts = new Date(raw);
-  if (Number.isNaN(ts.getTime())) {
-    const msg = $('clockModalMsg');
-    msg.className = 'action-feedback err';
-    msg.textContent = 'Invalid date/time.';
-    msg.style.display = 'block';
-    return;
-  }
-  await updateClock('set', ts.toISOString());
-};
-$('clockFreezeBtn').onclick = () => updateClock('freeze');
-$('clockResumeBtn').onclick = () => updateClock('resume');
-$('clockDisplayAnalogBtn').onclick = () => setClockDisplayMode('analog');
-$('clockDisplayDigitalBtn').onclick = () => setClockDisplayMode('digital');
-function openClockModal() {
-  $('clockModalOverlay').classList.add('open');
-  $('clockModalMsg').className = 'action-feedback';
-  $('clockModalMsg').style.display = 'none';
-  $('clockModalMsg').textContent = '';
-  setClockDisplayMode(clockDisplayMode);
-  $('clockSetInput').value = toLocalInputValue(settlementClock.now instanceof Date ? settlementClock.now : new Date());
-}
-if ($('clockWidgetBtn')) $('clockWidgetBtn').onclick = () => {
-  if (!isTestOperator()) return;
-  openClockModal();
-};
-if ($('sidebarHeaderTime')) $('sidebarHeaderTime').onclick = openClockModal;
-$('clockModalCloseBtn').onclick = () => $('clockModalOverlay').classList.remove('open');
-$('clockModalOverlay').onclick = (e) => {
-  if (e.target === $('clockModalOverlay')) $('clockModalOverlay').classList.remove('open');
-};
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') $('clockModalOverlay').classList.remove('open');
-});
 
 function auditActionDisplay(a) {
   const isAuto = a.action === 'auto_approve';
@@ -1330,14 +1154,11 @@ async function loadDeposits() {
 // ── Init ──
 (async () => {
   if (!(await checkAuth())) return;
-  await loadClockStatus();
+  loadClockStatus();
   loadQueue();
   navigateToPath(window.location.pathname || '/review-queue', false);
   window.addEventListener('popstate', () => navigateToPath(window.location.pathname, false));
   setInterval(() => loadQueue(), 10000);
-  setInterval(() => {
-    if (isTestOperator()) loadClockStatus();
-  }, 30000);
 })();
 </script>
 </body>
