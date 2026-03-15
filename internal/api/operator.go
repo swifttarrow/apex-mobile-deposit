@@ -226,6 +226,41 @@ func (h *OperatorHandler) Audit(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetTransfer handles GET /operator/transfer/{transfer_id}.
+// Returns a single transfer for operator detail view (e.g. from audit log). 404 if not found.
+func (h *OperatorHandler) GetTransfer(w http.ResponseWriter, r *http.Request) {
+	transferID := r.PathValue("transfer_id")
+	if transferID == "" {
+		writeError(w, http.StatusBadRequest, "transfer_id is required")
+		return
+	}
+	t, err := h.operatorRepo.GetTransfer(transferID)
+	if err != nil {
+		log.Printf("operator get transfer: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to get transfer")
+		return
+	}
+	if t == nil {
+		writeError(w, http.StatusNotFound, "transfer not found")
+		return
+	}
+	item := QueueItem{Transfer: t}
+	if t.VendorResponse != "" {
+		var scores struct {
+			IQScore        float64 `json:"iq_score"`
+			MICRConfidence float64 `json:"micr_confidence"`
+		}
+		if err := json.Unmarshal([]byte(t.VendorResponse), &scores); err == nil {
+			item.IQScore = scores.IQScore
+			item.MICRConfidence = scores.MICRConfidence
+		}
+	}
+	if item.MICRConfidence == 0 && t.OCRAmount > 0 && t.EnteredAmount > 0 {
+		item.MICRConfidence = 0.5
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
 // Actions handles GET /operator/actions/{transfer_id}.
 func (h *OperatorHandler) Actions(w http.ResponseWriter, r *http.Request) {
 	transferID := r.PathValue("transfer_id")
