@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/checkstream/checkstream/internal/db"
+	"github.com/checkstream/checkstream/internal/depositjob"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
@@ -30,8 +31,9 @@ func setupTestDepositHandler(t *testing.T) (*DepositHandler, *http.ServeMux) {
 	fundingCfg := funding.NewConfig()
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
 	operatorRepo := operator.NewRepository(database)
+	jobRepo := depositjob.NewRepository(database)
 
-	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
+	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, jobRepo, database)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deposits", WithIdempotency(database, handler.Create))
@@ -54,7 +56,7 @@ func postDeposit(t *testing.T, mux *http.ServeMux, body map[string]interface{}, 
 }
 
 func TestDeposit_HappyPath(t *testing.T) {
-	_, mux := setupTestDepositHandler(t)
+	handler, mux := setupTestDepositHandler(t)
 
 	rr := postDeposit(t, mux, map[string]interface{}{
 		"account_id":  "ACC-001",
@@ -63,19 +65,37 @@ func TestDeposit_HappyPath(t *testing.T) {
 		"back_image":  "base64backimage",
 	}, nil)
 
-	if rr.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d: %s", rr.Code, rr.Body.String())
 	}
 
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
-	if result["state"] != "FundsPosted" {
-		t.Errorf("expected FundsPosted state, got %v", result["state"])
+	tr := result["transfer"].(map[string]interface{})
+	if tr["state"] != "Requested" {
+		t.Errorf("expected Requested state on accept, got %v", tr["state"])
+	}
+
+	if !handler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+
+	id := tr["id"].(string)
+	getReq := httptest.NewRequest(http.MethodGet, "/deposits/"+id, nil)
+	getRR := httptest.NewRecorder()
+	mux.ServeHTTP(getRR, getReq)
+	if getRR.Code != http.StatusOK {
+		t.Fatalf("get deposit: %d %s", getRR.Code, getRR.Body.String())
+	}
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "FundsPosted" {
+		t.Errorf("expected FundsPosted after process, got %v", t2["state"])
 	}
 }
 
 func TestDeposit_IQABlur(t *testing.T) {
-	_, mux := setupTestDepositHandler(t)
+	handler, mux := setupTestDepositHandler(t)
 
 	rr := postDeposit(t, mux, map[string]interface{}{
 		"account_id":  "ACC-IQA-BLUR",
@@ -84,19 +104,30 @@ func TestDeposit_IQABlur(t *testing.T) {
 		"back_image":  "blurryback",
 	}, nil)
 
-	if rr.Code != http.StatusUnprocessableEntity {
-		t.Errorf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	if !handler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
 	}
 
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
-	if result["reason"] != "blur" {
-		t.Errorf("expected reason blur, got %v", result["reason"])
+	tr := result["transfer"].(map[string]interface{})
+	id := tr["id"].(string)
+	getReq := httptest.NewRequest(http.MethodGet, "/deposits/"+id, nil)
+	getRR := httptest.NewRecorder()
+	mux.ServeHTTP(getRR, getReq)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Rejected" {
+		t.Errorf("expected Rejected state, got %v", t2["state"])
 	}
 }
 
 func TestDeposit_IQAGlare(t *testing.T) {
-	_, mux := setupTestDepositHandler(t)
+	handler, mux := setupTestDepositHandler(t)
 
 	rr := postDeposit(t, mux, map[string]interface{}{
 		"account_id":  "ACC-IQA-GLARE",
@@ -105,13 +136,30 @@ func TestDeposit_IQAGlare(t *testing.T) {
 		"back_image":  "glareback",
 	}, nil)
 
-	if rr.Code != http.StatusUnprocessableEntity {
-		t.Errorf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	if !handler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &result)
+	tr := result["transfer"].(map[string]interface{})
+	id := tr["id"].(string)
+	getReq := httptest.NewRequest(http.MethodGet, "/deposits/"+id, nil)
+	getRR := httptest.NewRecorder()
+	mux.ServeHTTP(getRR, getReq)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Rejected" {
+		t.Errorf("expected Rejected state, got %v", t2["state"])
 	}
 }
 
 func TestDeposit_OverLimit(t *testing.T) {
-	_, mux := setupTestDepositHandler(t)
+	handler, mux := setupTestDepositHandler(t)
 
 	rr := postDeposit(t, mux, map[string]interface{}{
 		"account_id":  "ACC-OVER-LIMIT",
@@ -120,13 +168,30 @@ func TestDeposit_OverLimit(t *testing.T) {
 		"back_image":  "back",
 	}, nil)
 
-	if rr.Code != http.StatusUnprocessableEntity {
-		t.Errorf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	if !handler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &result)
+	tr := result["transfer"].(map[string]interface{})
+	id := tr["id"].(string)
+	getReq := httptest.NewRequest(http.MethodGet, "/deposits/"+id, nil)
+	getRR := httptest.NewRecorder()
+	mux.ServeHTTP(getRR, getReq)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Rejected" {
+		t.Errorf("expected Rejected state, got %v", t2["state"])
 	}
 }
 
 func TestDeposit_Flagged_MICRFail(t *testing.T) {
-	_, mux := setupTestDepositHandler(t)
+	handler, mux := setupTestDepositHandler(t)
 
 	rr := postDeposit(t, mux, map[string]interface{}{
 		"account_id":  "ACC-MICR-FAIL",
@@ -139,16 +204,26 @@ func TestDeposit_Flagged_MICRFail(t *testing.T) {
 		t.Errorf("expected 202, got %d: %s", rr.Code, rr.Body.String())
 	}
 
+	if !handler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
 	tr := result["transfer"].(map[string]interface{})
-	if tr["state"] != "Analyzing" {
-		t.Errorf("expected Analyzing state, got %v", tr["state"])
+	id := tr["id"].(string)
+	getReq := httptest.NewRequest(http.MethodGet, "/deposits/"+id, nil)
+	getRR := httptest.NewRecorder()
+	mux.ServeHTTP(getRR, getReq)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Analyzing" {
+		t.Errorf("expected Analyzing state after process, got %v", t2["state"])
 	}
 }
 
 func TestDeposit_GetStatus(t *testing.T) {
-	_, mux := setupTestDepositHandler(t)
+	handler, mux := setupTestDepositHandler(t)
 
 	rr := postDeposit(t, mux, map[string]interface{}{
 		"account_id":  "ACC-001",
@@ -156,13 +231,18 @@ func TestDeposit_GetStatus(t *testing.T) {
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("deposit failed: %s", rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("deposit accept: %d %s", rr.Code, rr.Body.String())
 	}
 
-	var created map[string]interface{}
-	json.Unmarshal(rr.Body.Bytes(), &created)
-	id := created["id"].(string)
+	var result map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &result)
+	tr := result["transfer"].(map[string]interface{})
+	id := tr["id"].(string)
+
+	if !handler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
 
 	getReq := httptest.NewRequest(http.MethodGet, "/deposits/"+id, nil)
 	getRR := httptest.NewRecorder()
@@ -205,14 +285,22 @@ func TestDeposit_Idempotency(t *testing.T) {
 	rr1 := postDeposit(t, mux, body, headers)
 	rr2 := postDeposit(t, mux, body, headers)
 
-	if rr1.Code != http.StatusCreated {
+	if rr1.Code != http.StatusAccepted {
 		t.Fatalf("first request failed: %d %s", rr1.Code, rr1.Body.String())
 	}
-	if rr2.Code != http.StatusCreated {
+	if rr2.Code != http.StatusAccepted {
 		t.Errorf("idempotent replay failed: %d %s", rr2.Code, rr2.Body.String())
 	}
 	if rr2.Header().Get("X-Idempotency-Replayed") != "true" {
 		t.Error("expected X-Idempotency-Replayed header on second request")
+	}
+	var r1, r2 map[string]interface{}
+	json.Unmarshal(rr1.Body.Bytes(), &r1)
+	json.Unmarshal(rr2.Body.Bytes(), &r2)
+	id1 := r1["transfer"].(map[string]interface{})["id"].(string)
+	id2 := r2["transfer"].(map[string]interface{})["id"].(string)
+	if id1 != id2 {
+		t.Errorf("idempotent replay should return same transfer id: %s vs %s", id1, id2)
 	}
 }
 
@@ -243,7 +331,8 @@ func BenchmarkDeposit_CleanPass(b *testing.B) {
 	fundingCfg := funding.NewConfig()
 	fundingSvc := funding.NewService(fundingCfg, transferRepo)
 	operatorRepo := operator.NewRepository(database)
-	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
+	jobRepo := depositjob.NewRepository(database)
+	handler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, jobRepo, database)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deposits", WithIdempotency(database, handler.Create))
@@ -263,8 +352,8 @@ func BenchmarkDeposit_CleanPass(b *testing.B) {
 		req.Header.Set("X-Idempotency-Key", fmt.Sprintf("bench-%d", i))
 		rr := httptest.NewRecorder()
 		mux.ServeHTTP(rr, req)
-		if rr.Code != http.StatusCreated {
-			b.Fatalf("expected 201, got %d", rr.Code)
+		if rr.Code != http.StatusAccepted {
+			b.Fatalf("expected 202, got %d", rr.Code)
 		}
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/db"
+	"github.com/checkstream/checkstream/internal/depositjob"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
@@ -19,7 +20,7 @@ import (
 	"github.com/checkstream/checkstream/internal/vendor"
 )
 
-func setupFullMux(t *testing.T) *http.ServeMux {
+func setupFullMux(t *testing.T) (*http.ServeMux, *DepositHandler) {
 	t.Helper()
 	database, err := db.Open(":memory:")
 	if err != nil {
@@ -36,10 +37,11 @@ func setupFullMux(t *testing.T) *http.ServeMux {
 	if err := operatorRepo.SeedTestOperators(); err != nil {
 		t.Fatalf("seed operators: %v", err)
 	}
+	jobRepo := depositjob.NewRepository(database)
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
 	returnSvc := returnpkg.NewService(database, transferRepo, ledgerSvc)
 
-	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
+	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, jobRepo, database)
 	authHandler := NewAuthHandler(operatorRepo)
 	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc)
 	settlementHandler := NewSettlementHandler(settlementEngine)
@@ -57,7 +59,7 @@ func setupFullMux(t *testing.T) *http.ServeMux {
 	mux.HandleFunc("POST /returns", returnsHandler.ProcessReturn)
 	mux.HandleFunc("GET /ledger", ledgerHandler.List)
 	mux.HandleFunc("GET /accounts/{id}/balance", ledgerHandler.Balance)
-	return mux
+	return mux, depositHandler
 }
 
 func doPost(t *testing.T, mux *http.ServeMux, path string, body interface{}, headers map[string]string) *httptest.ResponseRecorder {
@@ -105,54 +107,88 @@ func doGet(t *testing.T, mux *http.ServeMux, path string) *httptest.ResponseReco
 
 // Scenario 1: Clean pass (ACC-001)
 func TestScenario_CleanPass(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-001",
 		"amount":      150.00,
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("scenario 1 (clean pass): expected 201, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("scenario 1 (clean pass): expected 202, got %d: %s", rr.Code, rr.Body.String())
 	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
-	if result["state"] != "FundsPosted" {
-		t.Errorf("expected FundsPosted, got %v", result["state"])
+	tr := result["transfer"].(map[string]interface{})
+	if tr["state"] != "Requested" {
+		t.Errorf("expected Requested on accept, got %v", tr["state"])
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+	getRR := doGet(t, mux, "/deposits/"+tr["id"].(string))
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "FundsPosted" {
+		t.Errorf("expected FundsPosted after process, got %v", t2["state"])
 	}
 }
 
 // Scenario 2: IQA blur fail (ACC-IQA-BLUR)
 func TestScenario_IQABlur(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-IQA-BLUR",
 		"amount":      100.00,
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("scenario 2 (IQA blur): expected 422, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("scenario 2 (IQA blur): expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+	var result map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &result)
+	id := result["transfer"].(map[string]interface{})["id"].(string)
+	getRR := doGet(t, mux, "/deposits/"+id)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Rejected" {
+		t.Errorf("expected Rejected, got %v", t2["state"])
 	}
 }
 
 // Scenario 3: IQA glare fail (ACC-IQA-GLARE)
 func TestScenario_IQAGlare(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-IQA-GLARE",
 		"amount":      100.00,
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("scenario 3 (IQA glare): expected 422, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("scenario 3 (IQA glare): expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+	var result map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &result)
+	id := result["transfer"].(map[string]interface{})["id"].(string)
+	getRR := doGet(t, mux, "/deposits/"+id)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Rejected" {
+		t.Errorf("expected Rejected, got %v", t2["state"])
 	}
 }
 
 // Scenario 4: MICR fail → flagged → operator approves
 func TestScenario_MICRFail_OperatorApprove(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-MICR-FAIL",
 		"amount":      200.00,
@@ -161,6 +197,9 @@ func TestScenario_MICRFail_OperatorApprove(t *testing.T) {
 	}, nil)
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("scenario 4 (MICR fail): expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process (move to Analyzing)")
 	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
@@ -185,7 +224,7 @@ func TestScenario_MICRFail_OperatorApprove(t *testing.T) {
 
 // Scenario 5: MICR fail → flagged → operator rejects
 func TestScenario_MICRFail_OperatorReject(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-MICR-FAIL",
 		"amount":      200.00,
@@ -194,6 +233,9 @@ func TestScenario_MICRFail_OperatorReject(t *testing.T) {
 	}, nil)
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d", rr.Code)
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process (move to Analyzing)")
 	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
@@ -217,7 +259,7 @@ func TestScenario_MICRFail_OperatorReject(t *testing.T) {
 
 // Scenario 6: Amount mismatch → flagged for review
 func TestScenario_AmountMismatch(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-MISMATCH",
 		"amount":      1500.00,
@@ -227,43 +269,69 @@ func TestScenario_AmountMismatch(t *testing.T) {
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("scenario 6 (amount mismatch): expected 202, got %d: %s", rr.Code, rr.Body.String())
 	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
-	if result["reason"] != "amount_mismatch" {
-		t.Errorf("expected reason amount_mismatch, got %v", result["reason"])
+	id := result["transfer"].(map[string]interface{})["id"].(string)
+	getRR := doGet(t, mux, "/deposits/"+id)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Analyzing" {
+		t.Errorf("expected Analyzing (flagged), got %v", t2["state"])
 	}
 }
 
 // Scenario 7: Duplicate detected (ACC-DUP-001)
 func TestScenario_Duplicate(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-DUP-001",
 		"amount":      100.00,
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("scenario 7 (duplicate): expected 422, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("scenario 7 (duplicate): expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
 	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
-	if result["reason"] != "duplicate" {
-		t.Errorf("expected reason duplicate, got %v", result["reason"])
+	id := result["transfer"].(map[string]interface{})["id"].(string)
+	getRR := doGet(t, mux, "/deposits/"+id)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Rejected" {
+		t.Errorf("expected Rejected (duplicate), got %v", t2["state"])
 	}
 }
 
 // Scenario 8: Over deposit limit
 func TestScenario_OverLimit(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-OVER-LIMIT",
 		"amount":      5001.00,
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("scenario 8 (over limit): expected 422, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("scenario 8 (over limit): expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
+	}
+	var result map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &result)
+	id := result["transfer"].(map[string]interface{})["id"].(string)
+	getRR := doGet(t, mux, "/deposits/"+id)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["state"] != "Rejected" {
+		t.Errorf("expected Rejected (over limit), got %v", t2["state"])
 	}
 }
 
@@ -275,7 +343,7 @@ func TestScenario_Return(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 
 	// Submit clean deposit
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
@@ -284,12 +352,15 @@ func TestScenario_Return(t *testing.T) {
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("deposit failed: %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("deposit accept: %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
 	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
-	id := result["id"].(string)
+	id := result["transfer"].(map[string]interface{})["id"].(string)
 
 	// Process return
 	rr2 := doPost(t, mux, "/returns", map[string]interface{}{
@@ -317,7 +388,7 @@ func TestScenario_Settlement(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 
 	// Submit deposit
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
@@ -326,8 +397,11 @@ func TestScenario_Settlement(t *testing.T) {
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("deposit failed: %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("deposit accept: %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
 	}
 
 	// Trigger settlement
@@ -345,19 +419,26 @@ func TestScenario_Settlement(t *testing.T) {
 
 // Scenario 11: Retirement account with contribution type
 func TestScenario_RetirementAccount(t *testing.T) {
-	mux := setupFullMux(t)
+	mux, depositHandler := setupFullMux(t)
 	rr := doPost(t, mux, "/deposits", map[string]interface{}{
 		"account_id":  "ACC-RETIRE-001",
 		"amount":      1000.00,
 		"front_image": "front",
 		"back_image":  "back",
 	}, nil)
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("scenario 11 (retirement): expected 201, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("scenario 11 (retirement): expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process")
 	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
-	if result["contribution_type"] != "individual" {
-		t.Errorf("expected contribution_type=individual, got %v", result["contribution_type"])
+	id := result["transfer"].(map[string]interface{})["id"].(string)
+	getRR := doGet(t, mux, "/deposits/"+id)
+	var t2 map[string]interface{}
+	json.Unmarshal(getRR.Body.Bytes(), &t2)
+	if t2["contribution_type"] != "individual" {
+		t.Errorf("expected contribution_type=individual, got %v", t2["contribution_type"])
 	}
 }

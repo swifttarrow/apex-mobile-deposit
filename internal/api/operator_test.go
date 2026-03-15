@@ -9,6 +9,7 @@ import (
 
 	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/db"
+	"github.com/checkstream/checkstream/internal/depositjob"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
@@ -16,7 +17,7 @@ import (
 	"github.com/checkstream/checkstream/internal/vendor"
 )
 
-func setupOperatorTestMux(t *testing.T) *http.ServeMux {
+func setupOperatorTestMux(t *testing.T) (*http.ServeMux, *DepositHandler) {
 	t.Helper()
 	database, err := db.Open(":memory:")
 	if err != nil {
@@ -33,8 +34,9 @@ func setupOperatorTestMux(t *testing.T) *http.ServeMux {
 	if err := operatorRepo.SeedTestOperators(); err != nil {
 		t.Fatalf("seed operators: %v", err)
 	}
+	jobRepo := depositjob.NewRepository(database)
 
-	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
+	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, jobRepo, database)
 	authHandler := NewAuthHandler(operatorRepo)
 	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc)
 
@@ -45,7 +47,7 @@ func setupOperatorTestMux(t *testing.T) *http.ServeMux {
 	mux.HandleFunc("GET /operator/queue", auth.RequireOperator(operatorHandler.Queue))
 	mux.HandleFunc("POST /operator/approve", auth.RequireOperator(operatorHandler.Approve))
 	mux.HandleFunc("POST /operator/reject", auth.RequireOperator(operatorHandler.Reject))
-	return mux
+	return mux, depositHandler
 }
 
 // loginAsTestOperator performs login and returns cookies to attach to subsequent requests.
@@ -64,7 +66,7 @@ func loginAsTestOperator(t *testing.T, mux *http.ServeMux) []*http.Cookie {
 }
 
 // createFlaggedDeposit submits a MICR fail deposit which lands in Analyzing.
-func createFlaggedDeposit(t *testing.T, mux *http.ServeMux) string {
+func createFlaggedDeposit(t *testing.T, mux *http.ServeMux, depositHandler *DepositHandler) string {
 	t.Helper()
 	body := map[string]interface{}{
 		"account_id":  "ACC-MICR-FAIL",
@@ -80,6 +82,9 @@ func createFlaggedDeposit(t *testing.T, mux *http.ServeMux) string {
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d: %s", rr.Code, rr.Body.String())
 	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process (move to Analyzing)")
+	}
 	var result map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &result)
 	tr := result["transfer"].(map[string]interface{})
@@ -87,9 +92,9 @@ func createFlaggedDeposit(t *testing.T, mux *http.ServeMux) string {
 }
 
 func TestOperator_FlaggedInQueue(t *testing.T) {
-	mux := setupOperatorTestMux(t)
+	mux, depositHandler := setupOperatorTestMux(t)
 	cookies := loginAsTestOperator(t, mux)
-	id := createFlaggedDeposit(t, mux)
+	id := createFlaggedDeposit(t, mux, depositHandler)
 
 	req := httptest.NewRequest(http.MethodGet, "/operator/queue", nil)
 	for _, c := range cookies {
@@ -132,9 +137,9 @@ func TestOperator_FlaggedInQueue(t *testing.T) {
 }
 
 func TestOperator_Approve(t *testing.T) {
-	mux := setupOperatorTestMux(t)
+	mux, depositHandler := setupOperatorTestMux(t)
 	cookies := loginAsTestOperator(t, mux)
-	id := createFlaggedDeposit(t, mux)
+	id := createFlaggedDeposit(t, mux, depositHandler)
 
 	body := map[string]interface{}{
 		"transfer_id": id,
@@ -161,9 +166,9 @@ func TestOperator_Approve(t *testing.T) {
 }
 
 func TestOperator_Reject(t *testing.T) {
-	mux := setupOperatorTestMux(t)
+	mux, depositHandler := setupOperatorTestMux(t)
 	cookies := loginAsTestOperator(t, mux)
-	id := createFlaggedDeposit(t, mux)
+	id := createFlaggedDeposit(t, mux, depositHandler)
 
 	body := map[string]interface{}{
 		"transfer_id": id,
@@ -190,7 +195,7 @@ func TestOperator_Reject(t *testing.T) {
 }
 
 func TestOperator_ApproveOverLimit(t *testing.T) {
-	mux := setupOperatorTestMux(t)
+	mux, depositHandler := setupOperatorTestMux(t)
 	// Submit flagged deposit with amount over $5000 limit (flagged path skips business rules)
 	body := map[string]interface{}{
 		"account_id":  "ACC-MICR-FAIL",
@@ -205,6 +210,9 @@ func TestOperator_ApproveOverLimit(t *testing.T) {
 	mux.ServeHTTP(rr, req)
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("expected 202 (flagged), got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !depositHandler.ProcessOneJob() {
+		t.Fatal("expected one job to process (move to Analyzing)")
 	}
 	var depositResult map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &depositResult)
@@ -232,7 +240,7 @@ func TestOperator_ApproveOverLimit(t *testing.T) {
 }
 
 func TestOperator_ApproveNotFound(t *testing.T) {
-	mux := setupOperatorTestMux(t)
+	mux, _ := setupOperatorTestMux(t)
 	cookies := loginAsTestOperator(t, mux)
 
 	body := map[string]interface{}{
