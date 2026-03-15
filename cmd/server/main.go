@@ -108,7 +108,8 @@ func main() {
 			name = "index.html"
 		case path == "/review-queue",
 			path == "/settlement",
-			path == "/deposits":
+			path == "/deposits",
+			path == "/ledger":
 			name = "index.html"
 		case strings.HasPrefix(path, "/deposits/"):
 			name = "index.html"
@@ -156,6 +157,7 @@ func main() {
 	// Operator routes (require login)
 	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc)
 	mux.HandleFunc("GET /operator/queue", auth.RequireOperator(operatorHandler.Queue))
+	mux.HandleFunc("GET /operator/transfers", auth.RequireOperator(operatorHandler.ListTransfers))
 	mux.HandleFunc("GET /operator/audit", auth.RequireOperator(operatorHandler.Audit))
 	mux.HandleFunc("POST /operator/approve", auth.RequireOperator(operatorHandler.Approve))
 	mux.HandleFunc("POST /operator/reject", auth.RequireOperator(operatorHandler.Reject))
@@ -169,6 +171,10 @@ func main() {
 	mux.HandleFunc("GET /settlement/report/last", auth.RequireOperator(settlementHandler.LastReport))
 	mux.HandleFunc("POST /settlement/report", auth.RequireOperator(settlementHandler.GenerateReport))
 	mux.HandleFunc("POST /settlement/trigger", auth.RequireOperator(settlementHandler.Trigger))
+	mux.HandleFunc("GET /settlement/reports", auth.RequireOperator(settlementHandler.ListReports))
+	mux.HandleFunc("GET /settlement/reports/{id}/download", auth.RequireOperator(settlementHandler.DownloadReport))
+	mux.HandleFunc("GET /settlement/reports/{id}/x9", auth.RequireOperator(settlementHandler.DownloadReportX9))
+	mux.HandleFunc("GET /settlement/reports/{id}", auth.RequireOperator(settlementHandler.GetReport))
 
 	// Returns routes
 	returnsHandler := api.NewReturnsHandler(returnSvc)
