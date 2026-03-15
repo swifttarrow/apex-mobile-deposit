@@ -19,19 +19,51 @@ type TransferLookup interface {
 	GetTransferByTransactionID(txnID string) (*transfer.Transfer, error)
 }
 
+// ContributionLookup is the interface for YTD contribution totals (used for retirement limits).
+type ContributionLookup interface {
+	SumPostedAmountByAccountYear(accountID string, year int) (float64, error)
+}
+
 // Service provides funding validation logic.
 type Service struct {
-	cfg  *Config
-	repo TransferLookup
+	cfg   *Config
+	repo  TransferLookup
+	ytd   ContributionLookup
+	yearFn func() int
 }
 
 // NewService creates a new funding service.
 func NewService(cfg *Config, repo TransferLookup) *Service {
-	return &Service{cfg: cfg, repo: repo}
+	return &Service{cfg: cfg, repo: repo, ytd: nil, yearFn: nil}
 }
 
-// CheckLimit validates that the deposit amount does not exceed the configured limit.
-func (s *Service) CheckLimit(amount float64) error {
+// NewServiceWithContributionLookup creates a funding service that enforces per-account-type contribution limits.
+func NewServiceWithContributionLookup(cfg *Config, repo TransferLookup, ytd ContributionLookup) *Service {
+	return &Service{cfg: cfg, repo: repo, ytd: ytd, yearFn: nil}
+}
+
+// CheckLimit validates that the deposit amount is within limits for the account.
+// For standard accounts: single-deposit limit applies. For 401k/IRA etc.: annual contribution limit (YTD + amount) applies.
+func (s *Service) CheckLimit(accountID string, amount float64) error {
+	annualLimit := s.cfg.GetAnnualContributionLimit(accountID)
+	if annualLimit > 0 && s.ytd != nil {
+		year := CurrentYear()
+		if s.yearFn != nil {
+			year = s.yearFn()
+		}
+		ytd, err := s.ytd.SumPostedAmountByAccountYear(accountID, year)
+		if err != nil {
+			return fmt.Errorf("contribution check: %w", err)
+		}
+		if ytd+amount > annualLimit {
+			return fmt.Errorf("%w: %.2f + %.2f YTD exceeds annual limit %.2f", ErrOverLimit, amount, ytd, annualLimit)
+		}
+		// Also cap a single deposit at the general limit for sanity
+		if amount > s.cfg.DepositLimit {
+			return fmt.Errorf("%w: single deposit %.2f > %.2f", ErrOverLimit, amount, s.cfg.DepositLimit)
+		}
+		return nil
+	}
 	if amount > s.cfg.DepositLimit {
 		return fmt.Errorf("%w: %.2f > %.2f", ErrOverLimit, amount, s.cfg.DepositLimit)
 	}

@@ -29,21 +29,21 @@ func newTestService() *Service {
 
 func TestCheckLimit_Under(t *testing.T) {
 	svc := newTestService()
-	if err := svc.CheckLimit(1000.00); err != nil {
+	if err := svc.CheckLimit("ACC-001", 1000.00); err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
 }
 
 func TestCheckLimit_AtLimit(t *testing.T) {
 	svc := newTestService()
-	if err := svc.CheckLimit(5000.00); err != nil {
+	if err := svc.CheckLimit("ACC-001", 5000.00); err != nil {
 		t.Errorf("expected no error at limit, got %v", err)
 	}
 }
 
 func TestCheckLimit_Over(t *testing.T) {
 	svc := newTestService()
-	if err := svc.CheckLimit(5001.00); err == nil {
+	if err := svc.CheckLimit("ACC-001", 5001.00); err == nil {
 		t.Error("expected error over limit")
 	}
 }
