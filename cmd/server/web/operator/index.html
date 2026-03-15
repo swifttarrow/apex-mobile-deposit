@@ -201,6 +201,85 @@
     .action-feedback.ok  { background: var(--color-success); color: var(--color-success-foreground); display: block; }
     .action-feedback.err { background: var(--color-error); color: var(--color-error-foreground); display: block; }
     .empty-row td { text-align: center; padding: 40px; color: var(--muted-foreground); }
+    .clock-widget { border: 1.5px solid var(--border); border-radius: 12px; padding: 14px; background: var(--background); margin-top: 10px; }
+    .clock-widget.sidebar { margin-top: 0; background: var(--card); padding: 8px 10px; }
+    .clock-widget.sidebar .clock-time { font-size: 13px; }
+    .clock-widget.sidebar .clock-mode { margin-top: 2px; font-size: 11px; }
+    .clock-widget-btn { width: 100%; border: none; background: none; padding: 0; text-align: left; cursor: pointer; }
+    .clock-widget-btn[disabled] { cursor: default; }
+    .clock-time { font-family: var(--font-mono); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+    .clock-mode { font-size: 12px; color: var(--muted-foreground); margin-top: 6px; }
+    .clock-inline { display: flex; align-items: center; gap: 10px; }
+    .analog-clock {
+      position: relative;
+      width: 60px;
+      height: 60px;
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      background: var(--card);
+      box-shadow: inset 0 0 0 2px rgba(0,0,0,0.02);
+    }
+    .analog-clock.sidebar { width: 40px; height: 40px; }
+    .clock-mark {
+      position: absolute;
+      left: 50%;
+      top: 4px;
+      width: 2px;
+      height: 6px;
+      background: var(--muted-foreground);
+      transform-origin: 50% 26px;
+      opacity: 0.75;
+    }
+    .analog-clock.sidebar .clock-mark { top: 3px; height: 4px; transform-origin: 50% 17px; }
+    .clock-hand {
+      position: absolute;
+      left: 50%;
+      bottom: 50%;
+      transform-origin: 50% 100%;
+      transform: translateX(-50%) rotate(0deg);
+      border-radius: 999px;
+    }
+    .clock-hand.hour { width: 4px; height: 16px; background: var(--foreground); }
+    .clock-hand.minute { width: 3px; height: 21px; background: var(--foreground); }
+    .clock-hand.second { width: 2px; height: 24px; background: var(--primary); }
+    .analog-clock.sidebar .clock-hand.hour { height: 10px; width: 2.5px; }
+    .analog-clock.sidebar .clock-hand.minute { height: 12px; width: 2px; }
+    .analog-clock.sidebar .clock-hand.second { height: 13px; width: 1.5px; }
+    .clock-center {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--foreground);
+      transform: translate(-50%, -50%);
+    }
+    .clock-display-switch { display: flex; gap: 8px; margin-bottom: 10px; }
+    .clock-display-btn {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--background);
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--foreground);
+      font-family: var(--font-sans);
+    }
+    .clock-display-btn.active { background: var(--foreground); color: #fff; border-color: var(--foreground); }
+    .clock-display-panel { display: none; }
+    .clock-display-panel.active { display: block; }
+    .modal-analog-wrap { display: flex; align-items: center; gap: 14px; }
+    .modal-analog-meta { font-size: 13px; color: var(--muted-foreground); }
+    .clock-hint { font-size: 12px; color: var(--muted-foreground); margin-top: 8px; }
+    .clock-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; z-index: 80; }
+    .clock-modal-overlay.open { display: flex; }
+    .clock-modal { width: min(520px, calc(100vw - 32px)); background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+    .clock-modal-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .clock-modal-subtitle { font-size: 13px; color: var(--muted-foreground); margin-bottom: 14px; }
+    .clock-modal-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+    .clock-input { padding: 8px 10px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--card); color: var(--foreground); font-family: var(--font-sans); font-size: 13px; }
+    .clock-modal-footer { display: flex; justify-content: flex-end; margin-top: 14px; }
   </style>
 </head>
 <body>
@@ -266,7 +345,6 @@
 
 <!-- ── Main ── -->
 <div class="main">
-
   <!-- ── Queue View ── -->
   <div class="view active" id="viewQueue">
     <div class="queue-header">
@@ -438,11 +516,59 @@
         <div class="queue-title">Settlement</div>
         <div class="queue-subtitle">Trigger end-of-day settlement batch</div>
       </div>
-      <div class="d-card" style="margin:24px 28px;max-width:480px">
+      <div class="d-card" style="margin:24px 28px;max-width:560px">
         <div class="d-card-title">Settlement Trigger</div>
         <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px">Generates a settlement file for all FundsPosted transfers and writes it to disk.</p>
         <button class="action-btn btn-approve" id="triggerSettlementBtn">Trigger Settlement</button>
         <div id="settlementResult" class="action-feedback" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="clock-modal-overlay" id="clockModalOverlay">
+    <div class="clock-modal">
+      <div class="clock-modal-title">Adjust App Time</div>
+      <div class="clock-modal-subtitle">Set, freeze, or resume time travel for this test session.</div>
+      <div class="clock-display-switch">
+        <button class="clock-display-btn active" id="clockDisplayAnalogBtn">Clock</button>
+        <button class="clock-display-btn" id="clockDisplayDigitalBtn">Digital</button>
+      </div>
+      <div class="clock-display-panel active" id="clockDisplayAnalogPanel">
+        <div class="modal-analog-wrap">
+          <div class="analog-clock" id="modalAnalogClock">
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(0deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(30deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(60deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(90deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(120deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(150deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(180deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(210deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(240deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(270deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(300deg)"></span>
+            <span class="clock-mark" style="transform:translateX(-50%) rotate(330deg)"></span>
+            <span class="clock-hand hour" id="modalHourHand"></span>
+            <span class="clock-hand minute" id="modalMinuteHand"></span>
+            <span class="clock-hand second" id="modalSecondHand"></span>
+            <span class="clock-center"></span>
+          </div>
+          <div class="modal-analog-meta" id="clockModalMode">—</div>
+        </div>
+      </div>
+      <div class="clock-display-panel" id="clockDisplayDigitalPanel">
+        <div class="clock-time" id="clockModalCurrent">—</div>
+        <div class="clock-mode" id="clockModalDigitalMeta">—</div>
+      </div>
+      <div class="clock-modal-controls">
+        <input class="clock-input" id="clockSetInput" type="datetime-local" step="1">
+        <button class="page-btn" id="clockSetBtn">Set Time</button>
+        <button class="page-btn" id="clockFreezeBtn">Freeze</button>
+        <button class="page-btn" id="clockResumeBtn">Resume</button>
+      </div>
+      <div id="clockModalMsg" class="action-feedback"></div>
+      <div class="clock-modal-footer">
+        <button class="page-btn" id="clockModalCloseBtn">Close</button>
       </div>
     </div>
   </div>
@@ -516,6 +642,24 @@ let selectedTransfer = null;
 let currentPage = 0;
 const PAGE_SIZE = 10;
 let activeFilter = 'all';
+let settlementClock = { now: null, mode: 'running', source: 'system' };
+let clockTickTimer = null;
+let clockDisplayMode = 'analog';
+const ROUTES = {
+  '/operator': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
+  '/operator/review-queue': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
+  '/operator/settlement': { view: 'viewSettlement', nav: 'navSettlement', title: 'Settlement' },
+  '/operator/audit-log': { view: 'viewAuditLog', nav: 'navAuditLog', title: 'Audit Log' },
+  '/operator/accounts': { view: 'viewAccounts', nav: 'navAccounts', title: 'Accounts' },
+  '/operator/settings': { view: 'viewSettings', nav: 'navSettings', title: 'Settings' },
+};
+const NAV_TO_PATH = {
+  navReviewQueue: '/operator/review-queue',
+  navSettlement: '/operator/settlement',
+  navAuditLog: '/operator/audit-log',
+  navAccounts: '/operator/accounts',
+  navSettings: '/operator/settings',
+};
 
 function apiBase() {
   return location.origin.includes('localhost') ? 'http://localhost:8080' : location.origin;
@@ -554,6 +698,65 @@ function fmtDate(s) {
   if (!s) return '—';
   try { return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit',hour:'2-digit',minute:'2-digit'}); } catch(e) { return s; }
 }
+function fmtDateTime(s) {
+  if (!s) return '—';
+  try { return new Date(s).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZoneName:'short'}); } catch(e) { return s; }
+}
+function isTestOperator() {
+  return !!(currentOperator && currentOperator.operator_id && currentOperator.operator_id.startsWith('op-'));
+}
+function toLocalInputValue(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function setHand(id, degrees) {
+  const el = $(id);
+  if (!el) return;
+  el.style.transform = `translateX(-50%) rotate(${degrees}deg)`;
+}
+function renderAnalogClock(prefix, time) {
+  const h = time.getHours() % 12;
+  const m = time.getMinutes();
+  const s = time.getSeconds();
+  const hourDeg = (h + m / 60 + s / 3600) * 30;
+  const minuteDeg = (m + s / 60) * 6;
+  const secondDeg = s * 6;
+  setHand(`${prefix}HourHand`, hourDeg);
+  setHand(`${prefix}MinuteHand`, minuteDeg);
+  setHand(`${prefix}SecondHand`, secondDeg);
+}
+function setClockDisplayMode(mode) {
+  clockDisplayMode = mode === 'digital' ? 'digital' : 'analog';
+  $('clockDisplayAnalogBtn').classList.toggle('active', clockDisplayMode === 'analog');
+  $('clockDisplayDigitalBtn').classList.toggle('active', clockDisplayMode === 'digital');
+  $('clockDisplayAnalogPanel').classList.toggle('active', clockDisplayMode === 'analog');
+  $('clockDisplayDigitalPanel').classList.toggle('active', clockDisplayMode === 'digital');
+}
+function renderClockUI() {
+  const time = settlementClock.now instanceof Date ? settlementClock.now : new Date();
+  const mode = settlementClock.mode || 'running';
+  const sidebarCurrent = $('sidebarClockCurrent');
+  if (sidebarCurrent) sidebarCurrent.textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  const sidebarMode = $('sidebarClockMode');
+  if (sidebarMode) sidebarMode.textContent = `Mode: ${mode} · ${time.toLocaleDateString('en-US')}`;
+  renderAnalogClock('sidebar', time);
+  $('clockModalCurrent').textContent = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  $('clockModalMode').textContent = `Mode: ${mode} · ${fmtDateTime(time.toISOString())}`;
+  $('clockModalDigitalMeta').textContent = `Mode: ${mode} · ${fmtDateTime(time.toISOString())}`;
+  renderAnalogClock('modal', time);
+  $('clockFreezeBtn').disabled = mode === 'frozen';
+  $('clockResumeBtn').disabled = mode !== 'frozen';
+}
+function startClockTicker() {
+  if (clockTickTimer) clearInterval(clockTickTimer);
+  clockTickTimer = setInterval(() => {
+    if (!(settlementClock.now instanceof Date)) return;
+    if ((settlementClock.mode || 'running') === 'running') {
+      settlementClock.now = new Date(settlementClock.now.getTime() + 1000);
+      renderClockUI();
+    }
+  }, 1000);
+}
 function riskLevel(t) {
   const micr = t.micr_confidence || t.MICRConfidence || 0;
   const mismatch = t.ocr_amount && t.entered_amount && Math.abs(t.ocr_amount - t.entered_amount) > 0.01;
@@ -577,6 +780,19 @@ function flagReason(t) {
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   $(id).classList.add('active');
+}
+function routeForPath(pathname) {
+  return ROUTES[pathname] || ROUTES['/operator/review-queue'];
+}
+function navigateToPath(path, push = true) {
+  const route = routeForPath(path);
+  showView(route.view);
+  setActiveNav(route.nav);
+  if (push && window.location.pathname !== path) {
+    history.pushState({}, '', path);
+  }
+  if (route.view === 'viewSettlement') loadSettlementView();
+  if (route.view === 'viewAuditLog') loadAuditLog();
 }
 
 // ── Load Queue ──
@@ -787,7 +1003,7 @@ async function doAction(action) {
       fb.textContent = `${action === 'approve' ? 'Approved' : 'Rejected'} — state: ${j.state}`;
       allTransfers = allTransfers.filter(x => x.id !== selectedTransfer.id);
       applyFilter(activeFilter);
-      setTimeout(() => { showView('viewQueue'); }, 1200);
+      setTimeout(() => { navigateToPath('/operator/review-queue'); }, 1200);
     } else {
       fb.className = 'action-feedback err';
       fb.textContent = `Error: ${j.error || r.status}`;
@@ -804,7 +1020,7 @@ async function doAction(action) {
 
 $('detailApproveBtn').onclick = () => doAction('approve');
 $('detailRejectBtn').onclick  = () => doAction('reject');
-$('breadcrumbBack').onclick   = () => showView('viewQueue');
+$('breadcrumbBack').onclick   = () => navigateToPath('/operator/review-queue');
 
 // sidebar nav
 function setActiveNav(id) {
@@ -812,9 +1028,9 @@ function setActiveNav(id) {
   const el = $(id);
   if (el) el.classList.add('active');
 }
-$('navReviewQueue').onclick = () => { showView('viewQueue'); setActiveNav('navReviewQueue'); };
-$('navSettlement').onclick  = () => { showView('viewSettlement'); setActiveNav('navSettlement'); loadSettlementView(); };
-$('navAuditLog').onclick    = () => { showView('viewAuditLog'); setActiveNav('navAuditLog'); loadAuditLog(); };
+$('navReviewQueue').onclick = () => navigateToPath(NAV_TO_PATH.navReviewQueue);
+$('navSettlement').onclick  = () => navigateToPath(NAV_TO_PATH.navSettlement);
+$('navAuditLog').onclick    = () => navigateToPath(NAV_TO_PATH.navAuditLog);
 document.querySelectorAll('.audit-filter-chip').forEach(chip => {
   chip.onclick = () => {
     document.querySelectorAll('.audit-filter-chip').forEach(c => c.classList.remove('active'));
@@ -824,13 +1040,16 @@ document.querySelectorAll('.audit-filter-chip').forEach(chip => {
 });
 const auditOpFilter = $('auditOperatorFilter');
 if (auditOpFilter) auditOpFilter.onchange = loadAuditLog;
-$('navAccounts').onclick    = () => { showView('viewAccounts'); setActiveNav('navAccounts'); };
-$('navSettings').onclick    = () => { showView('viewSettings'); setActiveNav('navSettings'); };
+$('navAccounts').onclick    = () => navigateToPath(NAV_TO_PATH.navAccounts);
+$('navSettings').onclick    = () => navigateToPath(NAV_TO_PATH.navSettings);
 
 async function loadSettlementView() {
   $('settlementResult').className = 'action-feedback';
   $('settlementResult').style.display = 'none';
   $('settlementResult').textContent = '';
+  $('clockModalMsg').className = 'action-feedback';
+  $('clockModalMsg').style.display = 'none';
+  $('clockModalMsg').textContent = '';
 }
 $('triggerSettlementBtn').onclick = async () => {
   const el = $('settlementResult');
@@ -852,6 +1071,113 @@ $('triggerSettlementBtn').onclick = async () => {
     el.textContent = 'Error: ' + e.message;
   }
 };
+
+async function loadClockStatus() {
+  if (!$('clockWidgetBtn')) return;
+  $('clockWidgetBtn').disabled = !isTestOperator();
+  const sidebarMode = $('sidebarClockMode');
+  if (sidebarMode) sidebarMode.title = isTestOperator()
+    ? 'Click clock to open time-travel controls.'
+    : 'Read-only. Time travel controls are available for test users only.';
+  try {
+    if (isTestOperator()) {
+      const r = await fetch(`${apiBase()}/operator/clock`, fetchOpts());
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      settlementClock = {
+        now: new Date(j.now),
+        mode: j.mode || 'running',
+        source: 'app',
+      };
+    } else {
+      settlementClock = {
+        now: new Date(),
+        mode: 'running',
+        source: 'system',
+      };
+    }
+    $('clockSetInput').value = toLocalInputValue(settlementClock.now);
+    renderClockUI();
+    startClockTicker();
+  } catch (e) {
+    const sc = $('sidebarClockCurrent');
+    if (sc) sc.textContent = 'Clock unavailable';
+    const sm = $('sidebarClockMode');
+    if (sm) sm.textContent = `Error: ${e.message}`;
+  }
+}
+
+async function updateClock(action, value) {
+  const msg = $('clockModalMsg');
+  msg.className = 'action-feedback';
+  msg.textContent = 'Updating…';
+  msg.style.display = 'block';
+  try {
+    const payload = { action };
+    if (value) payload.time = value;
+    const r = await fetch(`${apiBase()}/operator/clock`, {
+      ...fetchOpts(),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    msg.className = 'action-feedback ok';
+    msg.textContent = `Clock updated: ${j.mode} (${fmtDateTime(j.now)})`;
+    settlementClock = {
+      now: new Date(j.now),
+      mode: j.mode || 'running',
+      source: 'app',
+    };
+    $('clockSetInput').value = toLocalInputValue(settlementClock.now);
+    renderClockUI();
+    await loadClockStatus();
+  } catch (e) {
+    msg.className = 'action-feedback err';
+    msg.textContent = `Error: ${e.message}`;
+  }
+}
+
+$('clockSetBtn').onclick = async () => {
+  const raw = $('clockSetInput').value;
+  if (!raw) {
+    const msg = $('clockModalMsg');
+    msg.className = 'action-feedback err';
+    msg.textContent = 'Pick a date and time first.';
+    msg.style.display = 'block';
+    return;
+  }
+  const ts = new Date(raw);
+  if (Number.isNaN(ts.getTime())) {
+    const msg = $('clockModalMsg');
+    msg.className = 'action-feedback err';
+    msg.textContent = 'Invalid date/time.';
+    msg.style.display = 'block';
+    return;
+  }
+  await updateClock('set', ts.toISOString());
+};
+$('clockFreezeBtn').onclick = () => updateClock('freeze');
+$('clockResumeBtn').onclick = () => updateClock('resume');
+$('clockDisplayAnalogBtn').onclick = () => setClockDisplayMode('analog');
+$('clockDisplayDigitalBtn').onclick = () => setClockDisplayMode('digital');
+if ($('clockWidgetBtn')) $('clockWidgetBtn').onclick = () => {
+  if (!isTestOperator()) return;
+  $('clockModalOverlay').classList.add('open');
+  $('clockModalMsg').className = 'action-feedback';
+  $('clockModalMsg').style.display = 'none';
+  $('clockModalMsg').textContent = '';
+  setClockDisplayMode(clockDisplayMode);
+  $('clockSetInput').value = toLocalInputValue(settlementClock.now instanceof Date ? settlementClock.now : new Date());
+};
+$('clockModalCloseBtn').onclick = () => $('clockModalOverlay').classList.remove('open');
+$('clockModalOverlay').onclick = (e) => {
+  if (e.target === $('clockModalOverlay')) $('clockModalOverlay').classList.remove('open');
+};
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') $('clockModalOverlay').classList.remove('open');
+});
 
 function auditActionDisplay(a) {
   const isAuto = a.action === 'auto_approve';
@@ -913,8 +1239,14 @@ async function loadAuditLog() {
 // ── Init ──
 (async () => {
   if (!(await checkAuth())) return;
+  await loadClockStatus();
   loadQueue();
+  navigateToPath(window.location.pathname || '/operator/review-queue', false);
+  window.addEventListener('popstate', () => navigateToPath(window.location.pathname, false));
   setInterval(() => loadQueue(), 10000);
+  setInterval(() => {
+    if (isTestOperator()) loadClockStatus();
+  }, 30000);
 })();
 </script>
 </body>
