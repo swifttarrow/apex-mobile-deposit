@@ -111,6 +111,44 @@ func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ListTransfers handles GET /operator/transfers.
+// Query params: limit, offset, state (optional filter by transfer state).
+// Returns all transfer records for the Ledger view.
+func (h *OperatorHandler) ListTransfers(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	stateFilter := transfer.State(q.Get("state"))
+
+	transfers, err := h.transferRepo.ListTransfersPaginated(limit, offset, stateFilter)
+	if err != nil {
+		log.Printf("operator list transfers: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to list transfers")
+		return
+	}
+	if transfers == nil {
+		transfers = []*transfer.Transfer{}
+	}
+
+	total, err := h.transferRepo.CountTransfers(stateFilter)
+	if err != nil {
+		log.Printf("operator count transfers: %v", err)
+		total = len(transfers)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"transfers": transfers,
+		"count":    len(transfers),
+		"total":    total,
+	})
+}
+
 // ApproveRequest is the request body for POST /operator/approve.
 type ApproveRequest struct {
 	TransferID              string `json:"transfer_id"`
