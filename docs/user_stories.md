@@ -211,7 +211,7 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 ## 4. Operator Workflow
 
-**Note:** Operator and settlement endpoints require authentication. Use `POST /operator/login` (e.g. username/password for seeded operators) or `POST /operator/guest`; send the session cookie (or same browser session) for `GET /operator/queue`, `POST /operator/approve`, `POST /operator/reject`, `GET /operator/audit`, `POST /settlement/trigger`, etc. See [architecture](architecture.md#api-routes-summary) and [DL-011](decision-log.md#dl-011-operator-authentication-cookie-sessions).
+**Note:** Operator and settlement endpoints require authentication. Use `POST /operator/login` (e.g. username/password for seeded operators) or `POST /operator/guest`; send the session cookie (or same browser session) for `GET /operator/queue`, `POST /operator/approve`, `POST /operator/reject`, `GET /operator/audit`, `POST /settlement/trigger`, etc. See [architecture](architecture.md#api-routes-summary) and [DL-011](decision_log.md#dl-011-operator-authentication-cookie-sessions).
 
 ### US-4.1: Review queue displays flagged deposits
 
@@ -354,7 +354,7 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 - Reversal posted (amount + $30 fee), transfer → Returned
 - Ledger reflects reversal
 
-**Implementation note:** Return service accepts both `FundsPosted` and `Completed`, but the state machine currently allows only `FundsPosted → Returned`. If return from `Completed` fails with invalid transition, see [L-005](risks-limitations.md#l-005-return-from-completed-not-implemented).
+**Implementation note:** Return service accepts both `FundsPosted` and `Completed`, but the state machine currently allows only `FundsPosted → Returned`. If return from `Completed` fails with invalid transition, see [L-005](risks_limitations.md#l-005-return-from-completed-not-implemented).
 
 ---
 
