@@ -808,6 +808,34 @@ $('submitBtn').onclick = async () => {
   }
 };
 
+// Terminal states: no need to poll further
+function isTerminalState(s) {
+  const state = String(s || '').trim();
+  return ['FundsPosted', 'Completed', 'Rejected', 'Returned'].includes(state);
+}
+
+let statusPollingId = null;
+function startStatusPolling(transferId) {
+  stopStatusPolling();
+  statusPollingId = setInterval(async () => {
+    try {
+      const r = await fetch(`${apiBase()}/deposits/${transferId}`);
+      if (!r.ok) return;
+      const t = await r.json();
+      state.currentTransfer = t;
+      const status = getDisplayStatus(t.state);
+      showStatusScreen(t, status.kind === 'error' ? 'error' : 'success', status.kind === 'error' ? buildFailureDetails(null, t) : null);
+      if (isTerminalState(t.state)) stopStatusPolling();
+    } catch (_) {}
+  }, 2000);
+}
+function stopStatusPolling() {
+  if (statusPollingId) {
+    clearInterval(statusPollingId);
+    statusPollingId = null;
+  }
+}
+
 // ── Status (user-facing display) ──
 // Maps backend transfer state to display label and kind for UI.
 function getDisplayStatus(backendState) {
@@ -933,6 +961,9 @@ function showStatusScreen(transfer, kind, failure) {
     $('statusAccount').textContent = transfer.account_id || '—';
     $('statusCheck').textContent = state.selectedCheck ? `Check #${String(state.selectedCheck).padStart(4,'0')}` : '—';
     $('statusDate').textContent = transfer.created_at ? new Date(transfer.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    if (!isTerminalState(transfer.state)) startStatusPolling(transfer.id);
+  } else {
+    stopStatusPolling();
   }
 
   const retakeWrap = $('statusRetakeWrap');
@@ -977,7 +1008,7 @@ function resetCaptureBoxes() {
   updateSubmitBtn();
 }
 
-$('statusBackBtn').onclick = () => showTab('capture');
+$('statusBackBtn').onclick = () => { stopStatusPolling(); showTab('capture'); };
 
 $('statusRetakeBtn').onclick = () => {
   resetCaptureBoxes();
