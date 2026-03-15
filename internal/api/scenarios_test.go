@@ -31,7 +31,7 @@ func setupFullMux(t *testing.T) *http.ServeMux {
 	vendorStub := vendor.NewStub("../../config/scenarios.json")
 	ledgerSvc := ledger.NewService(database)
 	fundingCfg := funding.NewConfig()
-	fundingSvc := funding.NewService(fundingCfg, transferRepo)
+	fundingSvc := funding.NewServiceWithContributionLookup(fundingCfg, transferRepo, transferRepo)
 	operatorRepo := operator.NewRepository(database)
 	if err := operatorRepo.SeedTestOperators(); err != nil {
 		t.Fatalf("seed operators: %v", err)
@@ -41,7 +41,7 @@ func setupFullMux(t *testing.T) *http.ServeMux {
 
 	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
 	authHandler := NewAuthHandler(operatorRepo)
-	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg)
+	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc)
 	settlementHandler := NewSettlementHandler(settlementEngine)
 	returnsHandler := NewReturnsHandler(returnSvc)
 	ledgerHandler := NewLedgerHandler(database)

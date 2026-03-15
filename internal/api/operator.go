@@ -20,6 +20,7 @@ type OperatorHandler struct {
 	transferRepo *transfer.Repository
 	ledgerSvc    *ledger.Service
 	fundingCfg   *funding.Config
+	fundingSvc   *funding.Service
 }
 
 // NewOperatorHandler creates a new OperatorHandler.
@@ -28,12 +29,14 @@ func NewOperatorHandler(
 	transferRepo *transfer.Repository,
 	ledgerSvc *ledger.Service,
 	fundingCfg *funding.Config,
+	fundingSvc *funding.Service,
 ) *OperatorHandler {
 	return &OperatorHandler{
 		operatorRepo: operatorRepo,
 		transferRepo: transferRepo,
 		ledgerSvc:    ledgerSvc,
 		fundingCfg:   fundingCfg,
+		fundingSvc:   fundingSvc,
 	}
 }
 
@@ -148,8 +151,8 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply business rules before approving (e.g. deposit limit for flagged transfers)
-	if err := h.fundingCfg.CheckLimit(t.Amount); err != nil {
+	// Apply business rules before approving (e.g. deposit/contribution limit for flagged transfers)
+	if err := h.fundingSvc.CheckLimit(t.AccountID, t.Amount); err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
@@ -204,6 +207,7 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 
 // Audit handles GET /operator/audit.
 // Query params: limit, action (all|approved|approve|auto_approve|reject), operator_id
+// Enriches each action with transfer_state, settled, and settlement_batch_id for the UI.
 func (h *OperatorHandler) Audit(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit := 50
@@ -225,6 +229,48 @@ func (h *OperatorHandler) Audit(w http.ResponseWriter, r *http.Request) {
 		actions = []*operator.Action{}
 	}
 
+	// Enrich with transfer state and settlement info for each action's transfer
+	transferIDs := make([]string, 0, len(actions))
+	seen := make(map[string]bool)
+	for _, a := range actions {
+		if a.TransferID != "" && !seen[a.TransferID] {
+			seen[a.TransferID] = true
+			transferIDs = append(transferIDs, a.TransferID)
+		}
+	}
+	transfers, _ := h.transferRepo.GetTransfersByIDs(transferIDs)
+	transferByID := make(map[string]*transfer.Transfer)
+	for _, t := range transfers {
+		transferByID[t.ID] = t
+	}
+
+	enriched := make([]map[string]interface{}, 0, len(actions))
+	for _, a := range actions {
+		item := map[string]interface{}{
+			"id":                         a.ID,
+			"transfer_id":                a.TransferID,
+			"action":                     a.Action,
+			"operator_id":                a.OperatorID,
+			"note":                       a.Note,
+			"contribution_type_override": a.ContributionTypeOverride,
+			"created_at":                 a.CreatedAt,
+		}
+		if t := transferByID[a.TransferID]; t != nil {
+			item["transfer_state"] = string(t.State)
+			item["settled"] = t.State == transfer.StateCompleted
+			if t.SettlementBatchID != "" {
+				item["settlement_batch_id"] = t.SettlementBatchID
+			}
+			if t.SettlementAckAt != "" {
+				item["settlement_ack_at"] = t.SettlementAckAt
+			}
+		} else {
+			item["transfer_state"] = ""
+			item["settled"] = false
+		}
+		enriched = append(enriched, item)
+	}
+
 	// Include distinct operators for filter dropdown (only when not filtering by operator)
 	operators := []string{}
 	if operatorFilter == "" {
@@ -235,7 +281,7 @@ func (h *OperatorHandler) Audit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"actions":   actions,
+		"actions":   enriched,
 		"operators": operators,
 	})
 }
