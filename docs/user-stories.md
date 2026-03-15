@@ -284,6 +284,35 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 ---
 
+### US-5.4: Trigger settlement includes only transfers eligible for trigger business day
+
+**As a** settlement processor **I want** settlement trigger to include only deposits eligible for the trigger business day **so that** after-cutoff deposits are not settled early.
+
+**Verification:**
+
+- Create two `FundsPosted` deposits on the same CT day:
+  - Deposit A before 6:30 PM CT
+  - Deposit B after 6:30 PM CT
+- Trigger settlement for that CT business day
+- Deposit A is included and transitions `FundsPosted -> Completed`
+- Deposit B is excluded and remains `FundsPosted` for next business day settlement
+
+---
+
+### US-5.5: Settlement trigger transitions only included transfers to Completed
+
+**As a** system **I want** only transfers actually written to the settlement file to transition to `Completed` **so that** transfer state reflects true settlement inclusion.
+
+**Verification:**
+
+- Trigger settlement when both eligible and deferred `FundsPosted` deposits exist
+- Every transfer included in the generated settlement file has:
+  - `state = Completed`
+  - settlement metadata populated (`settlement_batch_id`, `settlement_ack_at`)
+- Every deferred transfer not in the file remains `FundsPosted`
+
+---
+
 ## 6. Return & Reversal
 
 ### US-6.1: Return triggers reversal and fee
@@ -322,6 +351,20 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 - Return notification received
 - Reversal posted (amount + $30 fee), transfer → Returned
 - Ledger reflects reversal
+
+---
+
+### US-6.4: Return before settlement clears pending settlement association
+
+**As a** system **I want** a return on a `FundsPosted` (not yet settled) deposit to clear pending settlement association **so that** the deposit is excluded from settlement and cannot be accidentally settled later.
+
+**Verification:**
+
+- Deposit is in `FundsPosted` and has not been settled
+- Return notification is processed
+- Transfer transitions to `Returned`
+- Transfer is not included in subsequent settlement file generation
+- Settlement metadata is empty for the returned transfer (`settlement_batch_id`, `settlement_ack_at`)
 
 ---
 
@@ -380,6 +423,8 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 | 8   | Return/reversal: reversal + fee, transfer Returned                                | US-6.1, US-6.2, US-6.3 |
 | 9   | EOD cutoff: after 6:30 PM CT rolls to next business day                           | US-5.2                 |
 | 10  | Stub configurability: different inputs → different responses without code changes | US-1.7                 |
+| 11  | Settlement trigger: only eligible transfers included/completed; deferred stay pending | US-5.4, US-5.5      |
+| 12  | Pre-settlement return: returned transfer excluded from settlement batch              | US-6.4               |
 
 
 ---
