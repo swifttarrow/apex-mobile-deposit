@@ -168,7 +168,7 @@ func main() {
 	mux.HandleFunc("GET /operator/me", authHandler.Me)
 
 	// Operator routes (require login)
-	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc)
+	operatorHandler := api.NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc, investorRepo)
 	mux.HandleFunc("GET /operator/queue", auth.RequireOperator(operatorHandler.Queue))
 	mux.HandleFunc("GET /operator/transfers", auth.RequireOperator(operatorHandler.ListTransfers))
 	mux.HandleFunc("GET /operator/audit", auth.RequireOperator(operatorHandler.Audit))

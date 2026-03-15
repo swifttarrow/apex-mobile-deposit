@@ -103,6 +103,22 @@ func (c *Config) GetAccountIDs() []string {
 	return ids
 }
 
+// GetUserIDForAccount returns the first user (investor) ID that has access to the given account ID.
+// Returns empty string if not found or UserAccountIDs is not configured.
+func (c *Config) GetUserIDForAccount(accountID string) string {
+	if accountID == "" || len(c.UserAccountIDs) == 0 {
+		return ""
+	}
+	for userID, accountIDs := range c.UserAccountIDs {
+		for _, id := range accountIDs {
+			if id == accountID {
+				return userID
+			}
+		}
+	}
+	return ""
+}
+
 // GetAccountIDsForUser returns account IDs for the given user when UserAccountIDs is configured.
 // If userID is empty or UserAccountIDs is nil/empty, returns all configured accounts (backward compatible).
 // Only returns IDs that exist in OmnibusMap. Unknown users get an empty slice.

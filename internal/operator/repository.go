@@ -220,6 +220,20 @@ func (r *Repository) ListActions(transferID string) ([]*Action, error) {
 	return actions, rows.Err()
 }
 
+// CountActionsToday returns the number of approve/auto_approve and reject actions created today (UTC).
+func (r *Repository) CountActionsToday() (approved, rejected int, err error) {
+	today := r.nowFn().UTC().Format("2006-01-02")
+	err = r.db.QueryRow(`
+		SELECT
+			COALESCE(SUM(CASE WHEN action IN ('approve', 'auto_approve') THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN action = 'reject' THEN 1 ELSE 0 END), 0)
+		FROM operator_actions WHERE DATE(created_at) = ?`, today).Scan(&approved, &rejected)
+	if err != nil {
+		return 0, 0, fmt.Errorf("count actions today: %w", err)
+	}
+	return approved, rejected, nil
+}
+
 // RecordAction inserts an operator action record.
 func (r *Repository) RecordAction(transferID, action, operatorID, note, contributionTypeOverride string) (*Action, error) {
 	now := r.nowFn().UTC().Format(time.RFC3339)

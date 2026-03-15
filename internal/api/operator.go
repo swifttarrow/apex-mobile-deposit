@@ -8,6 +8,7 @@ import (
 
 	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/funding"
+	"github.com/checkstream/checkstream/internal/investor"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
 	"github.com/checkstream/checkstream/internal/trace"
@@ -21,6 +22,7 @@ type OperatorHandler struct {
 	ledgerSvc    *ledger.Service
 	fundingCfg   *funding.Config
 	fundingSvc   *funding.Service
+	investorRepo *investor.InvestorRepo
 }
 
 // NewOperatorHandler creates a new OperatorHandler.
@@ -30,6 +32,7 @@ func NewOperatorHandler(
 	ledgerSvc *ledger.Service,
 	fundingCfg *funding.Config,
 	fundingSvc *funding.Service,
+	investorRepo *investor.InvestorRepo,
 ) *OperatorHandler {
 	return &OperatorHandler{
 		operatorRepo: operatorRepo,
@@ -37,14 +40,16 @@ func NewOperatorHandler(
 		ledgerSvc:    ledgerSvc,
 		fundingCfg:   fundingCfg,
 		fundingSvc:   fundingSvc,
+		investorRepo: investorRepo,
 	}
 }
 
-// QueueItem is a transfer enriched with risk scores for the operator queue.
+// QueueItem is a transfer enriched with risk scores and investor display name for the operator queue.
 type QueueItem struct {
 	*transfer.Transfer
-	IQScore        float64 `json:"iq_score"`
-	MICRConfidence float64 `json:"micr_confidence"`
+	IQScore           float64 `json:"iq_score"`
+	MICRConfidence    float64 `json:"micr_confidence"`
+	InvestorDisplayName string `json:"investor_display_name,omitempty"`
 }
 
 // Queue handles GET /operator/queue.
@@ -61,8 +66,10 @@ func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	// Queue only contains Analyzing (flagged) transfers; other status returns empty
 	if statusFilter != "" && statusFilter != string(transfer.StateAnalyzing) {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"transfers": []QueueItem{},
-			"count":     0,
+			"transfers":      []QueueItem{},
+			"count":          0,
+			"approved_today": 0,
+			"rejected_today": 0,
 		})
 		return
 	}
@@ -84,6 +91,8 @@ func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	approvedToday, rejectedToday, _ := h.operatorRepo.CountActionsToday()
+
 	items := make([]QueueItem, 0, len(transfers))
 	for _, t := range transfers {
 		item := QueueItem{Transfer: t}
@@ -102,12 +111,23 @@ func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 		if item.MICRConfidence == 0 && t.OCRAmount > 0 && t.EnteredAmount > 0 {
 			item.MICRConfidence = 0.5
 		}
+		// Resolve investor display name: account_id -> user_id (from funding config) -> investor display name
+		if userID := h.fundingCfg.GetUserIDForAccount(t.AccountID); userID != "" && h.investorRepo != nil {
+			if acc, err := h.investorRepo.GetByID(userID); err == nil && acc != nil {
+				item.InvestorDisplayName = acc.DisplayName
+			}
+		}
+		if item.InvestorDisplayName == "" {
+			item.InvestorDisplayName = h.fundingCfg.GetDisplayName(t.AccountID)
+		}
 		items = append(items, item)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"transfers": items,
-		"count":     len(items),
+		"transfers":      items,
+		"count":          len(items),
+		"approved_today": approvedToday,
+		"rejected_today": rejectedToday,
 	})
 }
 

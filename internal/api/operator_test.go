@@ -38,7 +38,7 @@ func setupOperatorTestMux(t *testing.T) (*http.ServeMux, *DepositHandler) {
 
 	depositHandler := NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, jobRepo, database)
 	authHandler := NewAuthHandler(operatorRepo)
-	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc)
+	operatorHandler := NewOperatorHandler(operatorRepo, transferRepo, ledgerSvc, fundingCfg, fundingSvc, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deposits", WithIdempotency(database, depositHandler.Create))
