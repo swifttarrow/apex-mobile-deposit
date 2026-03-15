@@ -74,6 +74,14 @@ func (e *Engine) SettlementHealth(now time.Time) (unsettledCount int, afterEOD b
 	return len(transfers), IsAfterEOD(now), nil
 }
 
+// ReportSummary is a single row in the list of previous settlement reports (batches).
+type ReportSummary struct {
+	BatchID        string  `json:"batch_id"`
+	SettlementAckAt string `json:"settlement_ack_at"`
+	Count          int     `json:"count"`
+	TotalAmount    float64 `json:"total_amount"`
+}
+
 // Status holds settlement overview for the operator UI.
 type Status struct {
 	UnsettledCount  int     `json:"unsettled_count"`
@@ -111,6 +119,72 @@ func (e *Engine) Status() (*Status, error) {
 		SettledCount:    len(settled),
 		SettledAmount:   settledAmt,
 		LastReportAt:    lastReportStr,
+	}, nil
+}
+
+// ListReports returns all previous settlement batches (reports), newest first.
+func (e *Engine) ListReports() ([]ReportSummary, error) {
+	batches, err := e.transferRepo.ListSettlementBatches()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ReportSummary, len(batches))
+	for i := range batches {
+		out[i] = ReportSummary{
+			BatchID:         batches[i].BatchID,
+			SettlementAckAt:  batches[i].SettlementAckAt,
+			Count:           batches[i].Count,
+			TotalAmount:     batches[i].TotalAmount,
+		}
+	}
+	return out, nil
+}
+
+// GetReport returns a full settlement report (batch) by batch ID, or nil if not found.
+func (e *Engine) GetReport(batchID string) (*SettlementFile, error) {
+	transfers, err := e.transferRepo.ListTransfersBySettlementBatch(batchID)
+	if err != nil {
+		return nil, err
+	}
+	if len(transfers) == 0 {
+		return nil, nil
+	}
+	createdAt := ""
+	if transfers[0].SettlementAckAt != "" {
+		createdAt = transfers[0].SettlementAckAt
+	}
+	var totalAmount float64
+	entries := make([]SettlementEntry, 0, len(transfers))
+	for _, t := range transfers {
+		entry := SettlementEntry{
+			TransferID:    t.ID,
+			AccountID:     t.AccountID,
+			Amount:        t.Amount,
+			TransactionID: t.TransactionID,
+			FrontImageRef: fmt.Sprintf("%s/front", t.ID),
+			BackImageRef:  fmt.Sprintf("%s/back", t.ID),
+		}
+		if t.MICRData != "" {
+			var micr struct {
+				Routing     string `json:"routing"`
+				Account     string `json:"account"`
+				CheckNumber string `json:"checkNumber"`
+			}
+			if err := json.Unmarshal([]byte(t.MICRData), &micr); err == nil {
+				entry.MICRRouting = micr.Routing
+				entry.MICRAccount = micr.Account
+				entry.CheckNumber = micr.CheckNumber
+			}
+		}
+		entries = append(entries, entry)
+		totalAmount += t.Amount
+	}
+	return &SettlementFile{
+		BatchID:     batchID,
+		CreatedAt:   createdAt,
+		Transfers:   entries,
+		TotalCount:  len(entries),
+		TotalAmount: totalAmount,
 	}, nil
 }
 
