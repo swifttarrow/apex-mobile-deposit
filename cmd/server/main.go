@@ -13,6 +13,7 @@ import (
 	"github.com/checkstream/checkstream/internal/api"
 	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/db"
+	"github.com/checkstream/checkstream/internal/depositjob"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
@@ -80,6 +81,7 @@ func main() {
 	if err := operatorRepo.SeedTestOperators(); err != nil {
 		log.Printf("warning: seed test operators: %v", err)
 	}
+	jobRepo := depositjob.NewRepository(database)
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
 	returnSvc := returnpkg.NewService(database, transferRepo, ledgerSvc)
 
@@ -138,7 +140,7 @@ func main() {
 	}
 
 	// Register deposit routes
-	depositHandler := api.NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, database)
+	depositHandler := api.NewDepositHandler(transferRepo, vendorStub, ledgerSvc, fundingSvc, fundingCfg, operatorRepo, jobRepo, database)
 	mux.HandleFunc("POST /deposits", api.WithIdempotency(database, depositHandler.Create))
 	// GET /deposits and GET /deposits/{id} use content negotiation: JSON -> API, text/html -> operator SPA
 	mux.HandleFunc("GET /deposits", depoListOrPage(depositHandler.List, operatorPageHandler))
@@ -179,6 +181,9 @@ func main() {
 	// Returns routes
 	returnsHandler := api.NewReturnsHandler(returnSvc)
 	mux.HandleFunc("POST /returns", returnsHandler.ProcessReturn)
+
+	// Sandbox: process one deposit job (for scenario runner; deposits are async 202)
+	mux.HandleFunc("POST /sandbox/process-job", depositHandler.ProcessOneJobHTTP)
 
 	// Ledger routes
 	ledgerHandler := api.NewLedgerHandler(database)
@@ -276,6 +281,28 @@ func main() {
 		w.Write(b)
 	}
 	mux.HandleFunc("GET /checks/", checksHandler)
+
+	// Run deposit job worker: poll for pending jobs and process them
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			job, ok, err := jobRepo.ClaimNext()
+			if err != nil {
+				log.Printf("deposit worker: claim: %v", err)
+				continue
+			}
+			if !ok {
+				continue
+			}
+			if err := depositHandler.ProcessDeposit(job.TransferID); err != nil {
+				log.Printf("deposit worker: process %s: %v", job.TransferID, err)
+				_ = jobRepo.Fail(job.ID, err.Error())
+			} else {
+				_ = jobRepo.Complete(job.ID)
+			}
+		}
+	}()
 
 	// Run settlement every minute (in-process cron)
 	go func() {
