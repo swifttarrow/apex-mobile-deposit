@@ -71,8 +71,8 @@ func (s *Service) ProcessReturn(req *ReturnRequest) (*ReturnResult, error) {
 	var toAccountID string   // omnibus account
 	for _, e := range entries {
 		if e.IsReversal == 0 {
-			fromAccountID = e.ToAccountID  // original credit went to investor
-			toAccountID = e.FromAccountID  // original debit from omnibus
+			fromAccountID = e.ToAccountID // original credit went to investor
+			toAccountID = e.FromAccountID // original debit from omnibus
 			break
 		}
 	}
@@ -95,14 +95,23 @@ func (s *Service) ProcessReturn(req *ReturnRequest) (*ReturnResult, error) {
 		return nil, fmt.Errorf("create reversal entry: %w", err)
 	}
 
+	originalState := t.State
+
 	// Transition to Returned
 	if err := t.Transition(transfer.StateReturned); err != nil {
 		dbTx.Rollback()
 		return nil, fmt.Errorf("transition to returned: %w", err)
 	}
 
-	if _, err := dbTx.Exec(`UPDATE transfers SET state=?, updated_at=? WHERE id=?`,
-		string(t.State), t.UpdatedAt, t.ID); err != nil {
+	// If the return arrives before settlement completion, ensure it is not associated
+	// with any pending settlement metadata.
+	if originalState == transfer.StateFundsPosted {
+		t.SettlementBatchID = ""
+		t.SettlementAckAt = ""
+	}
+
+	if _, err := dbTx.Exec(`UPDATE transfers SET state=?, settlement_batch_id=?, settlement_ack_at=?, updated_at=? WHERE id=?`,
+		string(t.State), t.SettlementBatchID, t.SettlementAckAt, t.UpdatedAt, t.ID); err != nil {
 		dbTx.Rollback()
 		return nil, fmt.Errorf("update transfer state: %w", err)
 	}

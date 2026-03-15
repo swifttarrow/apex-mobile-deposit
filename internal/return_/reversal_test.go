@@ -1,10 +1,12 @@
 package return_
 
 import (
+	"os"
 	"testing"
 
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/ledger"
+	"github.com/checkstream/checkstream/internal/settlement"
 	"github.com/checkstream/checkstream/internal/transfer"
 )
 
@@ -103,5 +105,42 @@ func TestProcessReturn_CustomFee(t *testing.T) {
 	}
 	if result.ReversalFee != 50.00 {
 		t.Errorf("expected custom fee 50.00, got %.2f", result.ReversalFee)
+	}
+}
+
+func TestProcessReturn_FundsPostedExcludedFromSettlement(t *testing.T) {
+	svc, repo, ledgerSvc := setupReturnTest(t)
+	tr := createFundsPostedTransfer(t, repo, ledgerSvc)
+
+	if _, err := svc.ProcessReturn(&ReturnRequest{
+		TransferID: tr.ID,
+		Reason:     "nsf",
+	}); err != nil {
+		t.Fatalf("process return: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	engine := settlement.NewEngine(svc.db, repo, ledgerSvc)
+	batch, err := engine.GenerateSettlementFile()
+	if err != nil {
+		t.Fatalf("generate settlement: %v", err)
+	}
+	if batch.TotalCount != 0 {
+		t.Fatalf("expected returned FundsPosted transfer to be excluded, got %d", batch.TotalCount)
+	}
+
+	updated, err := repo.GetTransfer(tr.ID)
+	if err != nil {
+		t.Fatalf("get transfer: %v", err)
+	}
+	if updated.State != transfer.StateReturned {
+		t.Fatalf("expected Returned state, got %s", updated.State)
+	}
+	if updated.SettlementBatchID != "" || updated.SettlementAckAt != "" {
+		t.Fatalf("expected settlement metadata cleared for pre-settlement return")
 	}
 }
