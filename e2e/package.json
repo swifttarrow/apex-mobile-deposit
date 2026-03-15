@@ -1,0 +1,14 @@
+{
+  "name": "checkdepot-e2e",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "demo": "playwright test demo.spec.ts",
+    "demo:headed": "playwright test demo.spec.ts --headed",
+    "demo:slow": "DEMO_SLOW=500 playwright test demo.spec.ts --headed",
+    "install-browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
