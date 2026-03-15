@@ -10,6 +10,7 @@ import (
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
+	"github.com/checkstream/checkstream/internal/trace"
 	"github.com/checkstream/checkstream/internal/transfer"
 )
 
@@ -44,12 +45,24 @@ type QueueItem struct {
 }
 
 // Queue handles GET /operator/queue.
+// Query params: date, account, amount_min, amount_max, status, limit, offset.
+// Only status=Analyzing returns results (review queue shows flagged deposits).
 func (h *OperatorHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	dateFilter := q.Get("date")
 	accountFilter := q.Get("account")
+	statusFilter := q.Get("status")
 	amountMinStr := q.Get("amount_min")
 	amountMaxStr := q.Get("amount_max")
+
+	// Queue only contains Analyzing (flagged) transfers; other status returns empty
+	if statusFilter != "" && statusFilter != string(transfer.StateAnalyzing) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"transfers": []QueueItem{},
+			"count":     0,
+		})
+		return
+	}
 
 	var amountMin, amountMax float64
 	if amountMinStr != "" {
@@ -184,6 +197,7 @@ func (h *OperatorHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.operatorRepo.RecordAction(req.TransferID, "approve", operatorID, req.Note, req.ContributionTypeOverride); err != nil {
 		log.Printf("operator approve: record action: %v", err)
 	}
+	trace.DepositTrace(t.ID, t.AccountID, "operator_action", map[string]interface{}{"action": "approve", "operator_id": operatorID})
 
 	writeJSON(w, http.StatusOK, t)
 }
@@ -335,6 +349,7 @@ func (h *OperatorHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.operatorRepo.RecordAction(req.TransferID, "reject", operatorID, req.Note, ""); err != nil {
 		log.Printf("operator reject: record action: %v", err)
 	}
+	trace.DepositTrace(t.ID, t.AccountID, "operator_action", map[string]interface{}{"action": "reject", "operator_id": operatorID})
 
 	writeJSON(w, http.StatusOK, t)
 }

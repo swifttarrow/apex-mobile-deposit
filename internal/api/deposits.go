@@ -12,6 +12,7 @@ import (
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
 	"github.com/checkstream/checkstream/internal/transfer"
+	"github.com/checkstream/checkstream/internal/trace"
 	"github.com/checkstream/checkstream/internal/vendor"
 )
 
@@ -22,6 +23,7 @@ type DepositRequest struct {
 	FrontImage  string  `json:"front_image"`
 	BackImage   string  `json:"back_image"`
 	Scenario    string  `json:"scenario,omitempty"` // Overrides vendor stub scenario (e.g. clean_pass, amount_mismatch)
+	Source      string  `json:"source,omitempty"`   // Deposit source for logs: mobile, api, demo (default api)
 }
 
 // DepositHandler handles deposit-related HTTP requests.
@@ -117,7 +119,16 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	vendorResp := h.vendorStub.Validate(vendorReq, scenarioOverride)
 
+	depositSource := req.Source
+	if depositSource == "" {
+		depositSource = "api"
+	}
 	// Step 4: Handle vendor response
+	trace.DepositTrace(t.ID, req.AccountID, "vendor_response", map[string]interface{}{
+		"source":        depositSource,
+		"vendor_status": vendorResp.Status,
+		"reason":        vendorResp.Reason,
+	})
 	switch vendorResp.Status {
 	case "fail":
 		// Image quality failure → Rejected
@@ -152,6 +163,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	case "flagged":
 		// Needs human review → Analyzing
+		trace.DepositTrace(t.ID, req.AccountID, "vendor_flagged", map[string]interface{}{"source": depositSource, "state": "Analyzing", "reason": vendorResp.Reason})
 		if err := t.Transition(transfer.StateAnalyzing); err != nil {
 			log.Printf("deposit: transition to analyzing: %v", err)
 		}
@@ -197,6 +209,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Step 6: Business rules validation — MUST run before transitioning to Approved
 	if err := h.fundingSvc.ValidateSession(req.AccountID); err != nil {
+		trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "session"})
 		h.rejectTransfer(t, "invalid session")
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
 			"error":    err.Error(),
@@ -205,6 +218,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.fundingSvc.CheckEligibility(req.AccountID); err != nil {
+		trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "eligibility"})
 		h.rejectTransfer(t, "account not eligible")
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
 			"error":    err.Error(),
@@ -213,6 +227,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.fundingSvc.CheckLimit(req.Amount); err != nil {
+		trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "limit"})
 		h.rejectTransfer(t, "over limit")
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
 			"error":    err.Error(),
@@ -223,6 +238,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if t.TransactionID != "" {
 		if err := h.fundingSvc.CheckDuplicate(t.TransactionID); err != nil {
 			if errors.Is(err, funding.ErrDuplicate) {
+				trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "duplicate"})
 				h.rejectTransfer(t, "duplicate")
 				writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
 					"error":    err.Error(),
@@ -293,6 +309,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 			log.Printf("deposit: record audit action: %v", err)
 		}
 	}
+	trace.DepositTrace(t.ID, req.AccountID, "funds_posted", map[string]interface{}{"source": depositSource, "state": string(t.State)})
 
 	writeJSON(w, http.StatusCreated, t)
 }
