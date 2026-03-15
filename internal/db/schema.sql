@@ -45,6 +45,19 @@ CREATE TABLE IF NOT EXISTS operator_actions (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS deposit_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    transfer_id TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL,
+    scenario TEXT,
+    source TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_deposit_jobs_status ON deposit_jobs(status);
+
 CREATE TABLE IF NOT EXISTS idempotency_keys (
     key TEXT PRIMARY KEY,
     response_body TEXT NOT NULL,
