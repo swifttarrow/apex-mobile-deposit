@@ -108,6 +108,29 @@ func TestProcessReturn_CustomFee(t *testing.T) {
 	}
 }
 
+func TestProcessReturn_Completed(t *testing.T) {
+	svc, repo, ledgerSvc := setupReturnTest(t)
+	tr := createFundsPostedTransfer(t, repo, ledgerSvc)
+	// Move to Completed (e.g. after settlement)
+	if err := tr.Transition(transfer.StateCompleted); err != nil {
+		t.Fatalf("transition to Completed: %v", err)
+	}
+	if err := repo.UpdateTransferState(tr); err != nil {
+		t.Fatalf("update state: %v", err)
+	}
+
+	result, err := svc.ProcessReturn(&ReturnRequest{
+		TransferID: tr.ID,
+		Reason:     "bounced after settlement",
+	})
+	if err != nil {
+		t.Fatalf("process return from Completed: %v", err)
+	}
+	if result.Transfer.State != transfer.StateReturned {
+		t.Errorf("expected Returned, got %s", result.Transfer.State)
+	}
+}
+
 func TestProcessReturn_FundsPostedExcludedFromSettlement(t *testing.T) {
 	svc, repo, ledgerSvc := setupReturnTest(t)
 	tr := createFundsPostedTransfer(t, repo, ledgerSvc)
