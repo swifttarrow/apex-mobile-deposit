@@ -48,8 +48,9 @@
     }
     .diagram-pane h3 { font-size: 0.9rem; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; flex-shrink: 0; }
     .diagram-pane .accordion-desc { flex-shrink: 0; }
-    #mermaid-diagram { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; overflow: auto; }
-    #mermaid-diagram .mermaid { max-width: 100%; }
+    #mermaid-diagram { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+    #mermaid-diagram .mermaid { width: 100%; height: 100%; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+    #mermaid-diagram svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
     #mermaid-diagram .flow-current path,
     #mermaid-diagram path.flow-current {
       stroke: #FF8400 !important; stroke-width: 3 !important; filter: drop-shadow(0 0 6px rgba(255,132,0,0.5));
@@ -62,6 +63,7 @@
     #mermaid-diagram .flow-traversed-fail path, #mermaid-diagram path.flow-traversed-fail { stroke: #8C1C00 !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; animation: none !important; }
     #mermaid-diagram .flow-traversed rect, #mermaid-diagram .flow-traversed circle, #mermaid-diagram .flow-traversed ellipse { stroke: #004D1A !important; stroke-width: 2 !important; }
     #mermaid-diagram .flow-traversed-fail rect, #mermaid-diagram .flow-traversed-fail circle, #mermaid-diagram .flow-traversed-fail ellipse { stroke: #8C1C00 !important; stroke-width: 2 !important; }
+    #mermaid-diagram path.edge-async-dotted { stroke-dasharray: 8 4 !important; }
 
     .accordion-pane {
       flex: 0 0 380px;
@@ -207,8 +209,13 @@
       <div id="mermaid-diagram">
         <pre class="mermaid" id="mermaid-source">
 stateDiagram-v2
+    direction LR
     [*] --> Requested: Submit
-    Requested --> Validating: Send to Vendor
+    state "Send to Vendor (async)" as SendToVendorAsync
+    classDef asyncState fill:#E7E8E5,stroke:#9CA3AF,color:#6B7280
+    class SendToVendorAsync asyncState
+    Requested --> SendToVendorAsync
+    SendToVendorAsync --> Validating
     Validating --> Rejected: IQA Fail
     Validating --> Rejected: Duplicate
     Validating --> ManualReview: MICR/Amount
@@ -302,9 +309,9 @@ stateDiagram-v2
               if (!id && g.id) id = (g.id || '').replace(/-/g, '_').toLowerCase();
               pathToParent.push({ path, g, id });
             });
-            // Order must match Mermaid diagram: 2× Validating→Rejected, then ManualReview, then Analyzing
+            // Order must match Mermaid diagram: Requested→SendToVendorAsync→Validating, then 2× Validating→Rejected, etc.
             const segmentKeys = [
-              'start->requested','requested->validating','validating->rejected','validating->rejected',
+              'start->requested','requested->sendtovendorasync','sendtovendorasync->validating','validating->rejected-iqafail','validating->rejected-duplicate',
               'validating->manualreview','validating->analyzing','manualreview->rejected','manualreview->analyzing',
               'analyzing->rejected','analyzing->approved','approved->fundsposted','fundsposted->settlementqueued',
               'fundsposted->returned','settlementqueued->settling','settling->completed','settling->settlementissue',
@@ -312,8 +319,10 @@ stateDiagram-v2
             ];
             const usedPaths = new Set();
             const reverseId = (f, t) => t + '_' + f;
+            // For keys like validating->rejected-iqafail, match path by base segment validating->rejected
             segmentKeys.forEach((key, idx) => {
-              const [from, to] = key.split('->');
+              const [from, toRaw] = key.split('->');
+              const to = toRaw.replace(/-iqafail$|-duplicate$/, '');
               const exactId = from + '_' + to;
               const exactIdAlt = from + '-' + to;
               const revId = reverseId(from, to);
@@ -335,19 +344,28 @@ stateDiagram-v2
               }
               if (found) edgeMap[key] = found;
             });
+            if (edgeMap['validating->rejected-iqafail']) edgeMap['validating->rejected'] = edgeMap['validating->rejected-iqafail'];
           }
 
-          function findEdgeOrPath(from, to) {
+          function findEdgeOrPath(from, to, label) {
             if (!svgRoot) return null;
             if (!edgeMap) buildEdgeMap();
-            const key = edgeKey(from, to).toLowerCase();
+            let key = edgeKey(from, to).toLowerCase();
+            if (label != null && label !== '') {
+              const suffix = String(label).toLowerCase().replace(/\s+/g, '');
+              if (key === 'validating->rejected' && (suffix === 'iqafail' || suffix === 'duplicate'))
+                key = key + '-' + (suffix === 'iqafail' ? 'iqafail' : 'duplicate');
+            }
             return edgeMap[key] || null;
           }
 
           function findNode(name) {
             if (!svgRoot) return null;
             const n = name === '[*]' ? 'start' : name;
-            return svgRoot.querySelector('[id="' + n + '"]') || svgRoot.querySelector('[id="state-' + n + '"]') || svgRoot.querySelector('[id*="' + n + '"]');
+            const found = svgRoot.querySelector('[id="' + n + '"]') || svgRoot.querySelector('[id="state-' + n + '"]') || svgRoot.querySelector('[id*="' + n + '"]');
+            if (found) return found;
+            const nLower = n.toLowerCase();
+            return svgRoot.querySelector('[id="' + nLower + '"]') || svgRoot.querySelector('[id*="' + nLower + '"]');
           }
 
           function styleMarkers(edgePath, color) {
@@ -403,12 +421,30 @@ stateDiagram-v2
 
           mermaid.run({ nodes: [sourceEl], suppressErrors: true }).then(() => {
             svgRoot = diagramEl.querySelector('svg');
-            if (svgRoot) svgRoot.style.maxWidth = '100%';
+            if (svgRoot) {
+              svgRoot.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+              svgRoot.style.width = '100%';
+              svgRoot.style.height = '100%';
+              buildEdgeMap();
+              const dottedEdge = edgeMap && edgeMap['requested->sendtovendorasync'];
+              if (dottedEdge) dottedEdge.classList.add('edge-async-dotted');
+            }
           }).catch(() => {});
 
           window.__flowDiagram = {
             animatePath: async function(segments, isFail) {
               if (!segments || !segments.length) return;
+              // Expand Requested→Validating to Requested→SendToVendorAsync→Validating for diagram
+              const expanded = [];
+              for (const seg of segments) {
+                if (seg[0] === 'Requested' && seg[1] === 'Validating') {
+                  expanded.push(['Requested', 'SendToVendorAsync']);
+                  expanded.push(['SendToVendorAsync', 'Validating']);
+                } else {
+                  expanded.push(seg);
+                }
+              }
+              segments = expanded;
               if (segments[0][0] === 'Requested') {
                 segments = [['[*]', 'Requested']].concat(segments);
               }
@@ -421,14 +457,15 @@ stateDiagram-v2
               const delayMs = getDelayMs();
               const blinkMs = Math.max(150, Math.floor(delayMs * 0.35));
               const traversedColor = isFail ? '#f85149' : '#3fb950';
-              // Interleave: edge[0], node[0], edge[1], node[1], ...
+              // Interleave: edge[0], node[0], edge[1], node[1], ... (segment may be [from, to] or [from, to, label])
               const steps = [];
-              for (const [from, to] of segments) {
-                steps.push({ type: 'edge', from, to });
+              for (const seg of segments) {
+                const from = seg[0], to = seg[1], label = seg[2];
+                steps.push({ type: 'edge', from, to, label });
                 steps.push({ type: 'node', to });
               }
               for (const s of steps) {
-                const el = s.type === 'edge' ? findEdgeOrPath(s.from, s.to) : findNode(s.to);
+                const el = s.type === 'edge' ? findEdgeOrPath(s.from, s.to, s.label) : findNode(s.to);
                 // Flash blue
                 if (el) el.classList.add('flow-current');
                 if (s.type === 'edge' && el) styleMarkers(el, '#58a6ff');
@@ -459,40 +496,55 @@ stateDiagram-v2
     const SCENARIOS = [
       { id: 'US-1.1', name: 'Happy path — clean pass', section: 'Deposit Capture', runnable: true,
         desc: 'Submit valid check; processes end-to-end without operator review.',
-        expected: ['HTTP 201', 'State: FundsPosted', 'Ledger posted'],
+        expected: ['HTTP 202', 'Process job', 'State: FundsPosted', 'Ledger posted'],
         path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
         run: async (base) => {
           const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-001', amount: 150, front_image: 'f', back_image: 'b' }) });
           const j = await r.json();
-          const ok = r.status === 201 && (j.state === 'FundsPosted' || j.state === 'Completed');
-          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: ok ? [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(j) };
+          if (r.status !== 202) return { ok: false, status: r.status, body: j, msg: `Got ${r.status}`, path: pathFromResp(j.transfer || j) };
+          const tid = j.transfer?.id; if (!tid) return { ok: false, status: r.status, body: j, msg: 'No transfer id', path: [] };
+          await processOneJob(base);
+          const getR = await fetch(`${base}/deposits/${tid}`);
+          const t = await getR.json();
+          const ok = (t.state === 'FundsPosted' || t.state === 'Completed');
+          return { ok, status: 202, body: { accept: j, transfer: t }, msg: ok ? 'Passed' : `State: ${t.state}`, path: ok ? [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(t) };
         }},
       { id: 'US-1.2', name: 'IQA fail (blur)', section: 'Deposit Capture', runnable: true,
         desc: 'Blurry image; user retakes. Transfer rejected.',
-        expected: ['HTTP 422', 'reason: blur', 'No ledger'],
-        path: [['Requested','Validating'],['Validating','Rejected']],
+        expected: ['HTTP 202', 'Process job', 'State: Rejected'],
+        path: [['Requested','Validating'],['Validating','Rejected','IQA Fail']],
         run: async (base) => {
           const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-IQA-BLUR', amount: 100, front_image: 'x', back_image: 'x' }) });
           const j = await r.json();
-          const ok = r.status === 422 && (j.reason === 'blur' || j.transfer?.state === 'Rejected');
-          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Rejected']] };
+          if (r.status !== 202) return { ok: false, status: r.status, body: j, msg: `Got ${r.status}`, path: [['Requested','Validating']] };
+          const tid = j.transfer?.id; if (!tid) return { ok: false, status: r.status, body: j, msg: 'No transfer id', path: [] };
+          await processOneJob(base);
+          const getR = await fetch(`${base}/deposits/${tid}`);
+          const t = await getR.json();
+          const ok = t.state === 'Rejected';
+          return { ok, status: 202, body: { accept: j, transfer: t }, msg: ok ? 'Passed' : `State: ${t.state}`, path: [['Requested','Validating'],['Validating','Rejected','IQA Fail']] };
         }},
       { id: 'US-1.3', name: 'IQA fail (glare)', section: 'Deposit Capture', runnable: true,
         desc: 'Glare detected; user retakes.',
-        expected: ['HTTP 422', 'reason: glare', 'No ledger'],
-        path: [['Requested','Validating'],['Validating','Rejected']],
+        expected: ['HTTP 202', 'Process job', 'State: Rejected'],
+        path: [['Requested','Validating'],['Validating','Rejected','IQA Fail']],
         run: async (base) => {
           const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-IQA-GLARE', amount: 100, front_image: 'x', back_image: 'x' }) });
           const j = await r.json();
-          const ok = r.status === 422 && (j.reason === 'glare' || j.transfer?.state === 'Rejected');
-          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Rejected']] };
+          if (r.status !== 202) return { ok: false, status: r.status, body: j, msg: `Got ${r.status}`, path: [['Requested','Validating']] };
+          const tid = j.transfer?.id; if (!tid) return { ok: false, status: r.status, body: j, msg: 'No transfer id', path: [] };
+          await processOneJob(base);
+          const getR = await fetch(`${base}/deposits/${tid}`);
+          const t = await getR.json();
+          const ok = t.state === 'Rejected';
+          return { ok, status: 202, body: { accept: j, transfer: t }, msg: ok ? 'Passed' : `State: ${t.state}`, path: [['Requested','Validating'],['Validating','Rejected','IQA Fail']] };
         }},
       { id: 'US-1.4a', name: 'MICR fail — operator approves', section: 'Deposit Capture', runnable: true,
         desc: 'MICR unreadable; flagged. Operator approves → FundsPosted.',
-        expected: ['HTTP 202 submit', 'Approve → FundsPosted', 'Ledger posted'],
+        expected: ['HTTP 202 submit', 'Process job', 'Approve → FundsPosted', 'Ledger posted'],
         path: [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
         run: async (base) => {
           const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -501,6 +553,7 @@ stateDiagram-v2
           const micrPathToManualReview = [['Requested','Validating'],['Validating','ManualReview']];
           if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: `Got ${r1.status}`, path: micrPathToManualReview };
           const tid = j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No transfer id', path: micrPathToManualReview };
+          await processOneJob(base);
           const r2 = await fetch(`${base}/operator/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transfer_id: tid, operator_id: 'op-1', note: 'ok' }) });
           const j2 = await r2.json();
@@ -511,7 +564,7 @@ stateDiagram-v2
         }},
       { id: 'US-1.4b', name: 'MICR fail — operator rejects', section: 'Deposit Capture', runnable: true,
         desc: 'MICR unreadable; operator rejects → Rejected.',
-        expected: ['HTTP 202 submit', 'Reject → Rejected', 'No ledger'],
+        expected: ['HTTP 202 submit', 'Process job', 'Reject → Rejected', 'No ledger'],
         path: [['Requested','Validating'],['Validating','ManualReview'],['ManualReview','Rejected']],
         run: async (base) => {
           const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -519,6 +572,7 @@ stateDiagram-v2
           const j1 = await r1.json();
           if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: `Got ${r1.status}`, path: [['Requested','Validating'],['Validating','ManualReview']] };
           const tid = j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No id', path: [] };
+          await processOneJob(base);
           const r2 = await fetch(`${base}/operator/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transfer_id: tid, operator_id: 'op-1', note: 'no' }) });
           const j2 = await r2.json();
@@ -527,58 +581,79 @@ stateDiagram-v2
         }},
       { id: 'US-1.5', name: 'Duplicate detected', section: 'Deposit Capture', runnable: true,
         desc: 'Same check twice; second rejected.',
-        expected: ['HTTP 422', 'reason: duplicate', 'No ledger'],
-        path: [['Requested','Validating'],['Validating','Rejected']],
+        expected: ['HTTP 202', 'Process job', 'State: Rejected'],
+        path: [['Requested','Validating'],['Validating','Rejected','Duplicate']],
         run: async (base) => {
           const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-DUP-001', amount: 100, front_image: 'x', back_image: 'x' }) });
           const j = await r.json();
-          const ok = r.status === 422 && (j.reason === 'duplicate' || j.error?.includes('duplicate'));
-          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Rejected']] };
+          if (r.status !== 202) return { ok: false, status: r.status, body: j, msg: `Got ${r.status}`, path: [['Requested','Validating']] };
+          const tid = j.transfer?.id; if (!tid) return { ok: false, status: r.status, body: j, msg: 'No transfer id', path: [] };
+          await processOneJob(base);
+          const getR = await fetch(`${base}/deposits/${tid}`);
+          const t = await getR.json();
+          const ok = t.state === 'Rejected';
+          return { ok, status: 202, body: { accept: j, transfer: t }, msg: ok ? 'Passed' : `State: ${t.state}`, path: [['Requested','Validating'],['Validating','Rejected','Duplicate']] };
         }},
       { id: 'US-1.6', name: 'Amount mismatch — flagged', section: 'Deposit Capture', runnable: true,
         desc: 'OCR vs entered mismatch; flagged for review.',
-        expected: ['HTTP 202', 'reason: amount_mismatch', 'In operator queue'],
+        expected: ['HTTP 202', 'Process job', 'State: Analyzing', 'In operator queue'],
         path: [['Requested','Validating'],['Validating','ManualReview']],
         run: async (base) => {
           const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-MISMATCH', amount: 1500, front_image: 'f', back_image: 'b' }) });
           const j = await r.json();
-          const ok = r.status === 202 && (j.reason === 'amount_mismatch' || j.transfer?.state === 'Analyzing');
-          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','ManualReview']] };
+          if (r.status !== 202) return { ok: false, status: r.status, body: j, msg: `Got ${r.status}`, path: [['Requested','Validating']] };
+          const tid = j.transfer?.id; if (!tid) return { ok: false, status: r.status, body: j, msg: 'No transfer id', path: [] };
+          await processOneJob(base);
+          const getR = await fetch(`${base}/deposits/${tid}`);
+          const t = await getR.json();
+          const ok = t.state === 'Analyzing';
+          return { ok, status: 202, body: { accept: j, transfer: t }, msg: ok ? 'Passed' : `State: ${t.state}`, path: [['Requested','Validating'],['Validating','ManualReview']] };
         }},
       { id: 'US-2.1', name: 'Over-limit rejected', section: 'Funding', runnable: true,
         desc: 'Deposit > $5,000 rejected.',
-        expected: ['HTTP 422', 'limit exceeded', 'No ledger'],
+        expected: ['HTTP 202', 'Process job', 'State: Rejected'],
         path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Rejected']],
         run: async (base) => {
           const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-OVER-LIMIT', amount: 5001, front_image: 'f', back_image: 'b' }) });
           const j = await r.json();
-          const ok = r.status === 422 && (j.error?.includes('limit') || j.error?.includes('5000'));
-          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Rejected']] };
+          if (r.status !== 202) return { ok: false, status: r.status, body: j, msg: `Got ${r.status}`, path: [['Requested','Validating']] };
+          const tid = j.transfer?.id; if (!tid) return { ok: false, status: r.status, body: j, msg: 'No transfer id', path: [] };
+          await processOneJob(base);
+          const getR = await fetch(`${base}/deposits/${tid}`);
+          const t = await getR.json();
+          const ok = t.state === 'Rejected';
+          return { ok, status: 202, body: { accept: j, transfer: t }, msg: ok ? 'Passed' : `State: ${t.state}`, path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Rejected']] };
         }},
       { id: 'US-2.2', name: 'Under-limit accepted', section: 'Funding', runnable: true,
         desc: 'Deposit ≤ $5,000 proceeds.',
-        expected: ['HTTP 201', 'FundsPosted', 'Ledger posted'],
+        expected: ['HTTP 202', 'Process job', 'FundsPosted', 'Ledger posted'],
         path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
         run: async (base) => {
           const r = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-001', amount: 5000, front_image: 'f', back_image: 'b' }) });
           const j = await r.json();
-          const ok = r.status === 201 && (j.state === 'FundsPosted' || j.state === 'Completed');
-          return { ok, status: r.status, body: j, msg: ok ? 'Passed' : `Got ${r.status}`, path: ok ? [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(j) };
+          if (r.status !== 202) return { ok: false, status: r.status, body: j, msg: `Got ${r.status}`, path: pathFromResp(j.transfer || j) };
+          const tid = j.transfer?.id; if (!tid) return { ok: false, status: r.status, body: j, msg: 'No transfer id', path: [] };
+          await processOneJob(base);
+          const getR = await fetch(`${base}/deposits/${tid}`);
+          const t = await getR.json();
+          const ok = (t.state === 'FundsPosted' || t.state === 'Completed');
+          return { ok, status: 202, body: { accept: j, transfer: t }, msg: ok ? 'Passed' : `State: ${t.state}`, path: ok ? [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] : pathFromResp(t) };
         }},
       { id: 'US-6.1', name: 'Return — reversal + fee', section: 'Return', runnable: true,
         desc: 'Bounced check → reversal + $30 fee.',
-        expected: ['Return accepted', 'State: Returned', 'Reversal + $30 fee'],
+        expected: ['HTTP 202 deposit', 'Process job', 'FundsPosted', 'Return → Returned', 'Reversal + $30 fee'],
         path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted'],['FundsPosted','Returned']],
         run: async (base) => {
           const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account_id: 'ACC-001', amount: 500, front_image: 'f', back_image: 'b' }) });
           const j1 = await r1.json();
-          if (r1.status !== 201) return { ok: false, status: r1.status, body: j1, msg: 'Deposit failed', path: [['Requested','Validating']] };
-          const tid = j1.id || j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No id', path: [] };
+          if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: 'Deposit failed', path: [['Requested','Validating']] };
+          const tid = j1.transfer?.id; if (!tid) return { ok: false, status: r1.status, body: j1, msg: 'No id', path: [] };
+          await processOneJob(base);
           const r2 = await fetch(`${base}/returns`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transfer_id: tid, reason: 'insufficient funds' }) });
           const j2 = await r2.json();
@@ -595,38 +670,34 @@ stateDiagram-v2
           const ok = r.status === 200;
           return { ok, status: r.status, body: j, msg: ok ? `Passed (${j.total_count ?? 0} items)` : `Got ${r.status}`, path: [['FundsPosted','SettlementQueued'],['SettlementQueued','Settling'],['Settling','Completed']] };
         }},
-      { id: 'US-1.7', name: 'Stub configurability', section: 'Deposit Capture', runnable: false,
-        desc: 'Trigger scenarios via config or X-Test-Scenario.',
-        expected: ['7+ stub responses', 'No redeploy'],
-        path: []},
-      { id: 'US-5.2', name: 'EOD cutoff 6:30 PM CT', section: 'Settlement', runnable: false,
-        desc: 'Deposits after cutoff roll to next day.',
-        expected: ['Cutoff enforced', 'Timezone-aware'],
-        path: []},
-      { id: 'US-3.2', name: 'Valid state transitions', section: 'Ledger', runnable: false,
-        desc: 'Invalid transitions rejected.',
-        expected: ['Only valid transitions', 'Invalid attempts rejected'],
-        path: []},
       { id: 'US-Idem', name: 'Idempotency', section: 'System', runnable: true,
         desc: 'Same idempotency key returns cached response.',
-        expected: ['Second request = same id', 'No double transfer'],
+        expected: ['Second request = same transfer id', 'No double transfer'],
         path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']],
         run: async (base) => {
           const key = `idem-${Date.now()}`;
           const body = JSON.stringify({ account_id: 'ACC-001', amount: 75, front_image: 'f', back_image: 'b' });
           const r1 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': key }, body });
           const j1 = await r1.json();
-          if (r1.status !== 201) return { ok: false, status: r1.status, body: j1, msg: 'First failed', path: [['Requested','Validating']] };
+          if (r1.status !== 202) return { ok: false, status: r1.status, body: j1, msg: 'First failed', path: [['Requested','Validating']] };
+          const id1 = j1.transfer?.id; if (!id1) return { ok: false, status: r1.status, body: j1, msg: 'No transfer id', path: [] };
           const r2 = await fetch(`${base}/deposits`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': key }, body });
           const j2 = await r2.json();
-          const ok = (r2.status === 200 || r2.status === 201) && j1.id === j2.id;
+          const id2 = j2.transfer?.id || j2.id;
+          const ok = (r2.status === 200 || r2.status === 202) && id1 === id2;
           return { ok, status: r2.status, body: { first: j1, second: j2 }, msg: ok ? 'Passed' : 'Different ids', path: [['Requested','Validating'],['Validating','Analyzing'],['Analyzing','Approved'],['Approved','FundsPosted']] };
         }},
     ];
 
+    async function processOneJob(base) {
+      const r = await fetch(`${base}/sandbox/process-job`, { method: 'POST' });
+      const j = await r.json();
+      return j.processed === true;
+    }
     function pathFromResp(j) {
       const t = j.transfer || j; const s = t?.state;
-      if (s === 'Rejected') return [['Requested','Validating'],['Validating','Rejected']];
+      const reason = j.reason || t?.reason || '';
+      if (s === 'Rejected') return [['Requested','Validating'],['Validating','Rejected', reason === 'duplicate' ? 'Duplicate' : 'IQA Fail']];
       if (s === 'Analyzing') return [['Requested','Validating'],['Validating','ManualReview']];
       return [['Requested','Validating']];
     }
