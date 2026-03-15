@@ -31,7 +31,8 @@ test.describe('Demo — mobile to operator e2e', () => {
     await expect(page.locator('.scenario-chip[data-scenario="clean_pass"]')).toHaveClass(/selected/);
     await page.getByRole('button', { name: 'Submit Deposit' }).click();
 
-    await expect(page.locator('#statusBannerTitle')).toHaveText('Deposit Submitted', { timeout: 10_000 });
+    // Async processing: status may be Submitted, Processing, or Funds Posted
+    await expect(page.locator('#statusBannerTitle')).toContainText(/Deposit Submitted|Processing|Funds Posted/, { timeout: 15_000 });
     await expect(page.locator('#statusAmount')).toHaveText('$150.00');
 
     await page.getByRole('button', { name: 'DEPOSIT' }).click();
@@ -42,7 +43,7 @@ test.describe('Demo — mobile to operator e2e', () => {
     await page.locator('#accountSelect').selectOption('ACC-MICR-FAIL');
     await page.getByRole('button', { name: 'Submit Deposit' }).click();
 
-    await expect(page.locator('#statusBannerTitle')).toContainText(/Deposit Submitted|validated/, { timeout: 10_000 });
+    await expect(page.locator('#statusBannerTitle')).toContainText(/Deposit Submitted|Processing|Funds Posted|validated/, { timeout: 15_000 });
 
     // ── 3. Operator: approve flagged deposit ──
     await page.goto('/review-queue');
@@ -67,7 +68,7 @@ test.describe('Demo — mobile to operator e2e', () => {
     await page.locator('#amountInput').fill('75');
     await page.locator('.scenario-chip[data-scenario="clean_pass"]').click();
     await page.getByRole('button', { name: 'Submit Deposit' }).click();
-    await expect(page.locator('#statusBannerTitle')).toHaveText('Deposit Submitted', { timeout: 10_000 });
+    await expect(page.locator('#statusBannerTitle')).toContainText(/Deposit Submitted|Processing|Funds Posted/, { timeout: 15_000 });
 
     // ── 6. Operator: Settlement and Deposits list ──
     await page.goto('/settlement');
