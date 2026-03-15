@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -116,4 +117,88 @@ func (h *SettlementHandler) LastReport(w http.ResponseWriter, r *http.Request) {
 		s = t.Format("2006-01-02T15:04:05Z07:00")
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"last_report_at": s})
+}
+
+// ListReports handles GET /settlement/reports. Returns all previous settlement reports (batches), newest first.
+func (h *SettlementHandler) ListReports(w http.ResponseWriter, r *http.Request) {
+	reports, err := h.engine.ListReports()
+	if err != nil {
+		log.Printf("settlement list reports: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to list reports")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"reports": reports})
+}
+
+// GetReport handles GET /settlement/reports/{id}. Returns full report (batch) with transfers for expand in UI.
+func (h *SettlementHandler) GetReport(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "report id required")
+		return
+	}
+	report, err := h.engine.GetReport(id)
+	if err != nil {
+		log.Printf("settlement get report: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to get report")
+		return
+	}
+	if report == nil {
+		writeError(w, http.StatusNotFound, "report not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+// DownloadReport handles GET /settlement/reports/{id}/download. Returns report as JSON file attachment (array of settlements).
+func (h *SettlementHandler) DownloadReport(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "report id required")
+		return
+	}
+	report, err := h.engine.GetReport(id)
+	if err != nil {
+		log.Printf("settlement download report: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to get report")
+		return
+	}
+	if report == nil {
+		writeError(w, http.StatusNotFound, "report not found")
+		return
+	}
+	// Download as JSON array of settlement entries (transfers)
+	data, err := json.MarshalIndent(report.Transfers, "", "  ")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to marshal report")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", `attachment; filename="settlement-report-`+id+`.json"`)
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
+// DownloadReportX9 handles GET /settlement/reports/{id}/x9. Returns X9 ICL file or 501 if not implemented.
+func (h *SettlementHandler) DownloadReportX9(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "report id required")
+		return
+	}
+	report, err := h.engine.GetReport(id)
+	if err != nil {
+		log.Printf("settlement x9 report: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to get report")
+		return
+	}
+	if report == nil {
+		writeError(w, http.StatusNotFound, "report not found")
+		return
+	}
+	// X9 ICL generation not yet implemented; return 501 so UI can show optional download
+	writeJSON(w, http.StatusNotImplemented, map[string]interface{}{
+		"error":   "X9 ICL generation not implemented",
+		"message": "Use JSON download for now. X9 ICL export can be added via moov-io/imagecashletter.",
+	})
 }
