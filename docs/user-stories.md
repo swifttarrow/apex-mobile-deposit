@@ -20,7 +20,7 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 **Verification:**
 
-- Submit deposit (front image, back image, amount, account) with account configured for clean pass (e.g. `ACC-CLEAN` or `X-Test-Scenario: clean_pass`)
+- Submit deposit (front image, back image, amount, account) with account configured for clean pass (e.g. `ACC-001` or `X-Test-Scenario: clean_pass`; see `config/scenarios.json`)
 - Transfer reaches `Completed`
 - Ledger has MOVEMENT entry: To=investor, From=omnibus, SubType=DEPOSIT, TransferType=CHECK, Memo=FREE, Currency=USD
 - Settlement file includes deposit with MICR data, images, amount
@@ -104,8 +104,8 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 **Verification:**
 
-- At least 7 distinct stub responses achievable via: test account prefix, header (`X-Test-Scenario`), or `config/scenarios.json`
-- Scenarios: IQA pass, IQA fail blur, IQA fail glare, MICR fail, duplicate, amount mismatch, clean pass
+- At least 6 distinct stub responses achievable via: test account prefix, header (`X-Test-Scenario`), or `config/scenarios.json`
+- Scenarios in default config: clean pass, IQA fail blur, IQA fail glare, MICR fail, duplicate, amount mismatch (see `config/scenarios.json` and vendor stub)
 - Changing config or request produces expected stub response; no redeploy required
 
 ---
@@ -204,12 +204,14 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 **Verification:**
 
-- After deposit submission, state change (e.g. Validating → Analyzing) is visible via GET /deposits/:id within 1 second
+- After deposit submission, state change (e.g. Validating → Analyzing) is visible via `GET /deposits/{id}` within 1 second
 - Performance target: queryable within 1 second
 
 ---
 
 ## 4. Operator Workflow
+
+**Note:** Operator and settlement endpoints require authentication. Use `POST /operator/login` (e.g. username/password for seeded operators) or `POST /operator/guest`; send the session cookie (or same browser session) for `GET /operator/queue`, `POST /operator/approve`, `POST /operator/reject`, `GET /operator/audit`, `POST /settlement/trigger`, etc. See [architecture](architecture.md#api-routes-summary) and [DL-011](decision-log.md#dl-011-operator-authentication-cookie-sessions).
 
 ### US-4.1: Review queue displays flagged deposits
 
@@ -217,9 +219,9 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 **Verification:**
 
-- Operator queue lists deposits in `Analyzing` with flags (MICR fail, amount mismatch)
+- (When logged in) Operator queue lists deposits in `Analyzing` with flags (MICR fail, amount mismatch)
 - Each row shows: check images (front/back), MICR data, entered amount, OCR amount (if mismatch), risk context
-- Search/filter by date, status, account, amount works
+- Search/filter by date, account, amount works (query params: `date`, `account`, `amount_min`, `amount_max`, `limit`, `offset`)
 
 ---
 
@@ -348,9 +350,11 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 **Verification:**
 
 - Deposit in `Completed`
-- Return notification received
+- Return notification received (e.g. `POST /returns` with `transfer_id`, `reason`)
 - Reversal posted (amount + $30 fee), transfer → Returned
 - Ledger reflects reversal
+
+**Implementation note:** Return service accepts both `FundsPosted` and `Completed`, but the state machine currently allows only `FundsPosted → Returned`. If return from `Completed` fails with invalid transition, see [L-005](risks-limitations.md#l-005-return-from-completed-not-implemented).
 
 ---
 
@@ -376,8 +380,8 @@ Verifiable scenarios for the Checkstream mobile check deposit pipeline. These st
 
 **Verification:**
 
-- `make dev` or `docker compose up` starts all services
-- README documents setup steps
+- `make dev` (Go server) or `docker compose up` (if using Docker) starts the system
+- README documents setup steps (e.g. CGO for SQLite, `config/scenarios.json`)
 - System accepts deposits and processes them
 
 ---

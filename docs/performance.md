@@ -22,7 +22,7 @@ POST /deposits (clean pass) is well under the 100ms P50 target.
 | Operation | P50 | P95 | P99 |
 |-----------|-----|-----|-----|
 | POST /deposits (clean pass) | <100ms | <200ms | <500ms |
-| GET /deposits/:id | <10ms | <25ms | <50ms |
+| GET /deposits/{id} | <10ms | <25ms | <50ms |
 | GET /operator/queue | <20ms | <50ms | <100ms |
 | POST /settlement/trigger | <500ms | <1s | <2s |
 
@@ -34,7 +34,7 @@ POST /deposits (clean pass) is well under the 100ms P50 target.
 
 ## Optimization Opportunities
 
-- **Connection pooling** — `database/sql` pool already configured via `SetMaxOpenConns`
-- **Read replicas** — for GET endpoints, read from replica to reduce write contention
-- **Caching** — idempotency keys can be served from Redis instead of SQLite for lower latency
+- **Connection pooling** — `sql.DB` does not set `SetMaxOpenConns` in the demo; for production (e.g. PostgreSQL), tune pool size to match load
+- **Read replicas** — for GET endpoints, read from replica to reduce write contention (PostgreSQL migration)
+- **Caching** — idempotency keys can be served from Redis instead of SQLite for lower latency at scale
 - **Async ledger** — post ledger entries via message queue to decouple from deposit response time

@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   HTTP Layer (net/http)               │
-│  POST /deposits  GET /deposits/:id  /operator/...    │
+│  POST/GET /deposits  /operator/*  /settlement  ...   │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────┐
@@ -74,7 +74,8 @@ Completed
 - `ledger.go` — `CreateMovementEntry`, `CreateReversalEntry`, balance query
 
 ### `internal/operator`
-- `repository.go` — Queue of flagged transfers, action logging
+- `repository.go` — Queue of flagged transfers (Analyzing state), action logging, `ListFlaggedTransfers` with filters
+- `accounts.go` — Operator accounts (username/password), `GetOperatorByUsername`, `GetOperatorByID`, `SeedTestOperators` (bcrypt, password "password")
 
 ### `internal/settlement`
 - `eod.go` — EOD cutoff at 6:30 PM CT
@@ -85,9 +86,17 @@ Completed
 ### `internal/return_`
 - `reversal.go` — Reverse ledger entries, charge $30 fee, transition → Returned
 
+### `internal/auth`
+- `session.go` — Cookie-based operator session (gorilla/sessions), `GetOperatorID`, `SetOperatorSession`, `ClearSession`
+- `middleware.go` — `RequireOperator` wraps handlers and returns 401 if not logged in
+
+### `internal/clock`
+- `clock.go` — `TravelClock`: set/freeze/resume app time for testing EOD and settlement
+
 ### `internal/api`
 - HTTP handlers wiring all services together
-- Idempotency middleware (X-Idempotency-Key header)
+- `auth.go` — `AuthHandler`: login, guest, logout, me (operator session)
+- Idempotency middleware (`WithIdempotency`): X-Idempotency-Key header; if omitted, server generates a key so every request is idempotent by response caching
 
 ## Database
 
@@ -96,10 +105,32 @@ SQLite with WAL mode. Schema in `internal/db/schema.sql`.
 Tables:
 - `transfers` — Core transfer records
 - `ledger_entries` — Double-entry bookkeeping
-- `operator_actions` — Audit log
-- `idempotency_keys` — Response cache
+- `operator_actions` — Audit log (approve/reject with operator_id, note, contribution_type_override)
+- `idempotency_keys` — Response cache for POST /deposits
 - `check_images` — Image storage (base64)
+- `operators` — Operator accounts (username, password_hash, display_name, email) for login
 
 ## Configuration
 
 `config/scenarios.json` maps account ID prefixes to vendor scenarios. The vendor stub resolves the scenario deterministically, enabling reproducible test runs without network calls.
+
+## UIs and static assets
+
+- **Operator UI** — Embedded SPA at `/`, `/review-queue`, `/settlement`, `/deposits`, `/deposits/{id}`, `/login` (from `cmd/server/web/operator`). GET `/deposits` and GET `/deposits/{id}` use content negotiation: `Accept: text/html` returns the operator SPA, otherwise JSON API.
+- **Mobile UI** — Embedded at `/mobile` (from `cmd/server/web/mobile`) for check-deposit flow.
+- **Sandbox** — Scenario showcase at `/sandbox` (from `cmd/server/web/scenarios`).
+- **Check images** — Static assets at `/checks/{filename}` (same files as mobile `checks/`).
+
+## API routes (summary)
+
+| Area | Routes |
+|------|--------|
+| Health | `GET /health` |
+| Vendor | `POST /vendor/validate` (stub) |
+| Deposits | `POST /deposits` (idempotent), `GET /deposits`, `GET /deposits/{id}` (content negotiation) |
+| Operator auth | `POST /operator/login`, `POST /operator/guest`, `POST /operator/logout`, `GET /operator/me` |
+| Operator workflow | `GET /operator/queue`, `GET /operator/audit`, `POST /operator/approve`, `POST /operator/reject`, `GET /operator/transfer/{id}`, `GET /operator/actions/{id}` (all require login) |
+| Settlement | `POST /settlement/trigger` (requires login) |
+| Time (test) | `GET /operator/clock`, `POST /operator/clock` (requires login) |
+| Returns | `POST /returns` |
+| Ledger | `GET /ledger`, `GET /accounts/{id}/balance` |
