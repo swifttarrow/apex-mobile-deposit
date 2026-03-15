@@ -169,7 +169,7 @@
         const data = await r.json().catch(() => ({}));
 
         if (r.ok) {
-          window.location.href = '/operator';
+          window.location.href = '/';
         } else {
           err.textContent = data.error || data.message || 'Login failed';
           err.classList.add('show');
@@ -199,7 +199,7 @@
         const data = await r.json().catch(() => ({}));
 
         if (r.ok) {
-          window.location.href = '/operator';
+          window.location.href = '/';
         } else {
           err.textContent = data.error || data.message || 'Guest login failed';
           err.classList.add('show');

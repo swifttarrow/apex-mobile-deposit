@@ -203,6 +203,8 @@
     .risk-alert-body { font-size: 12px; color: var(--color-warning-foreground); margin-top: 4px; }
     .audit-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
     .audit-item:last-child { border-bottom: none; }
+    .audit-item.clickable { cursor: pointer; padding: 10px 12px; margin: 0 -12px; border-radius: 8px; }
+    .audit-item.clickable:hover { background: var(--secondary); }
     .audit-action-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 70px; }
     .audit-action { font-weight: 700; text-transform: capitalize; }
     .audit-action.approve { color: var(--color-success-foreground); }
@@ -325,12 +327,12 @@
       </svg>
       Settlement
     </button>
-    <button class="nav-item" id="navAuditLog">
+    <button class="nav-item" id="navDeposits">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
       </svg>
-      Audit Log
+      Deposits
     </button>
   </div>
 
@@ -499,7 +501,7 @@
           </div>
 
           <div class="d-card">
-            <div class="d-card-title">Audit Log</div>
+            <div class="d-card-title">Actions</div>
             <div id="auditList"><div style="color:var(--muted-foreground);font-size:13px">No actions yet</div></div>
           </div>
         </div>
@@ -516,7 +518,7 @@
       </div>
       <div class="d-card" style="margin:24px 28px;max-width:560px">
         <div class="d-card-title">Settlement Trigger</div>
-        <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px">Generates a settlement file for all FundsPosted transfers and writes it to disk.</p>
+        <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px">Generates a settlement file for all Funds Posted transfers and writes it to disk.</p>
         <button class="action-btn btn-approve" id="triggerSettlementBtn">Trigger Settlement</button>
         <div id="settlementResult" class="action-feedback" style="margin-top:12px"></div>
       </div>
@@ -571,11 +573,11 @@
     </div>
   </div>
 
-  <!-- ── Audit Log View ── -->
-  <div class="view" id="viewAuditLog">
+  <!-- ── Deposits View ── -->
+  <div class="view" id="viewDeposits">
     <div class="detail-inner">
       <div class="queue-header">
-        <div class="queue-title">Audit Log</div>
+        <div class="queue-title">Deposits</div>
         <div class="queue-subtitle">Recent operator actions across all deposits</div>
       </div>
       <div class="d-card" style="margin:24px 28px">
@@ -594,7 +596,7 @@
             <option value="">All operators</option>
           </select>
         </div>
-        <div id="auditLogList"><div style="color:var(--muted-foreground);font-size:13px">Loading…</div></div>
+        <div id="depositsList"><div style="color:var(--muted-foreground);font-size:13px">Loading…</div></div>
       </div>
     </div>
   </div>
@@ -609,22 +611,24 @@ let currentOperator = null;
 let allTransfers = [];
 let filteredTransfers = [];
 let selectedTransfer = null;
+let detailOpenedFromDeposits = false;
 let currentPage = 0;
 const PAGE_SIZE = 10;
 let activeFilter = 'all';
 let settlementClock = { now: null, mode: 'running', source: 'system' };
 let clockTickTimer = null;
 let clockDisplayMode = 'analog';
+const DEPOSITS_PATH_PREFIX = '/deposits/';
 const ROUTES = {
-  '/operator': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
-  '/operator/review-queue': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
-  '/operator/settlement': { view: 'viewSettlement', nav: 'navSettlement', title: 'Settlement' },
-  '/operator/audit-log': { view: 'viewAuditLog', nav: 'navAuditLog', title: 'Audit Log' },
+  '/': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
+  '/review-queue': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
+  '/settlement': { view: 'viewSettlement', nav: 'navSettlement', title: 'Settlement' },
+  '/deposits': { view: 'viewDeposits', nav: 'navDeposits', title: 'Deposits' },
 };
 const NAV_TO_PATH = {
-  navReviewQueue: '/operator/review-queue',
-  navSettlement: '/operator/settlement',
-  navAuditLog: '/operator/audit-log',
+  navReviewQueue: '/review-queue',
+  navSettlement: '/settlement',
+  navDeposits: '/deposits',
 };
 
 function apiBase() {
@@ -639,7 +643,7 @@ async function checkAuth() {
   try {
     const r = await fetch(`${apiBase()}/operator/me`, fetchOpts());
     if (r.status === 401) {
-      window.location.href = '/operator/login';
+      window.location.href = '/login';
       return false;
     }
     if (!r.ok) throw new Error('Auth check failed');
@@ -648,7 +652,7 @@ async function checkAuth() {
     $('sidebarUserEmail').textContent = currentOperator.email || '—';
     return true;
   } catch (e) {
-    window.location.href = '/operator/login';
+    window.location.href = '/login';
     return false;
   }
 }
@@ -656,7 +660,7 @@ $('logoutBtn').onclick = async () => {
   try {
     await fetch(`${apiBase()}/operator/logout`, { method: 'POST', ...fetchOpts() });
   } catch (_) {}
-  window.location.href = '/operator/login';
+  window.location.href = '/login';
 };
 function fmt(n) { return typeof n === 'number' ? '$' + n.toFixed(2) : (n || '—'); }
 function fmtPct(n) { return typeof n === 'number' ? (n * 100).toFixed(1) + '%' : '—'; }
@@ -750,17 +754,27 @@ function showView(id) {
   $(id).classList.add('active');
 }
 function routeForPath(pathname) {
-  return ROUTES[pathname] || ROUTES['/operator/review-queue'];
+  if (pathname.startsWith(DEPOSITS_PATH_PREFIX) && pathname.length > DEPOSITS_PATH_PREFIX.length) {
+    const transferId = decodeURIComponent(pathname.slice(DEPOSITS_PATH_PREFIX.length).split('/')[0]);
+    if (transferId) return { view: 'viewDetail', nav: 'navDeposits', title: 'Deposit', transferId };
+  }
+  return ROUTES[pathname] || ROUTES['/review-queue'];
 }
 function navigateToPath(path, push = true) {
   const route = routeForPath(path);
+  if (route.view === 'viewDetail' && route.transferId) {
+    setActiveNav(route.nav);
+    if (push && window.location.pathname !== path) history.pushState({}, '', path);
+    openDetailFromTransferId(route.transferId, route.nav === 'navDeposits');
+    return;
+  }
   showView(route.view);
   setActiveNav(route.nav);
   if (push && window.location.pathname !== path) {
     history.pushState({}, '', path);
   }
   if (route.view === 'viewSettlement') loadSettlementView();
-  if (route.view === 'viewAuditLog') loadAuditLog();
+  if (route.view === 'viewDeposits') loadDeposits();
 }
 
 // ── Load Queue ──
@@ -843,7 +857,10 @@ function renderTable() {
     $('queueTbody').querySelectorAll('tr[data-id]').forEach(row => {
       row.onclick = () => {
         const t = allTransfers.find(x => x.id === row.dataset.id);
-        if (t) openDetail(t);
+        if (t) {
+          history.pushState({}, '', DEPOSITS_PATH_PREFIX + encodeURIComponent(t.id));
+          openDetail(t, false);
+        }
       };
     });
   }
@@ -863,12 +880,35 @@ document.querySelectorAll('.filter-tab').forEach(tab => {
 $('queueSearch').oninput = () => applyFilter(activeFilter);
 
 // ── Detail ──
-function openDetail(t) {
-  selectedTransfer = t;
+function stateDisplayLabel(state) {
+  if (!state) return '—';
+  const labels = { FundsPosted: 'Funds Posted' };
+  return labels[state] || state;
+}
+function statusBadge(state) {
+  if (!state) return '<span class="badge badge-flagged">—</span>';
+  const s = String(state).toLowerCase();
+  const label = stateDisplayLabel(state);
+  if (s === 'analyzing') return '<span class="badge badge-flagged">Flagged</span>';
+  if (s === 'approved' || s === 'fundsposted' || s === 'completed') return '<span class="badge badge-approved">' + label + '</span>';
+  if (s === 'rejected' || s === 'returned') return '<span class="badge badge-rejected">' + label + '</span>';
+  return '<span class="badge">' + label + '</span>';
+}
 
-  const shortId = 'DEP-' + t.id.slice(0,5).toUpperCase();
+function openDetail(t, fromDeposits) {
+  selectedTransfer = t;
+  detailOpenedFromDeposits = !!fromDeposits;
+
+  const shortId = 'DEP-' + (t.id || '').slice(0,5).toUpperCase();
   $('breadcrumbId').textContent = shortId;
   $('detailTitle').textContent = `Deposit ${shortId}`;
+
+  const breadcrumbBack = $('breadcrumbBack');
+  if (detailOpenedFromDeposits) {
+    breadcrumbBack.textContent = '← Deposits';
+  } else {
+    breadcrumbBack.textContent = '← Review Queue';
+  }
 
   let vr = {}; try { vr = JSON.parse(t.vendor_response||'{}'); } catch(e) {}
   let micr = {}; try { micr = JSON.parse(t.micr_data||'{}'); } catch(e) {}
@@ -882,7 +922,7 @@ function openDetail(t) {
   $('ddOCR').textContent = t.ocr_amount ? fmt(t.ocr_amount) : '(not read)';
   $('ddAccount').textContent = t.account_id || '—';
   $('ddCheckNum').textContent = micr.checkNumber || t.transaction_id?.slice(0,8) || '—';
-  $('ddStatus').innerHTML = `<span class="badge badge-flagged">Flagged</span>`;
+  $('ddStatus').innerHTML = statusBadge(t.state);
 
   $('ddRouting').textContent = micr.routing || '—';
   $('ddMICRAcct').textContent = micr.account ? '****' + micr.account.slice(-4) : '—';
@@ -906,23 +946,43 @@ function openDetail(t) {
   $('ddIQ').textContent = iqScore ? fmtPct(iqScore) : '—';
   $('ddLimit').textContent = t.amount <= 10000 ? `Yes ($10,000 max)` : 'No — over limit';
 
-  // Images
-  const base = apiBase();
+  // Images (front and back of check). Use relative /checks/ URL so same origin; map placeholders to real assets.
+  function checkImagePath(path, fallback) {
+    if (!path || typeof path !== 'string') return fallback;
+    const p = path.trim().toLowerCase();
+    if (p === 'mock-front' || p === 'front' || p === 'f' || p === 'x' || p === 'blurry' || p === 'glare') return 'clean-check.png';
+    if (p === 'mock-back' || p === 'back' || p === 'b') return 'back-of-check.png';
+    return path;
+  }
+  const frontPath = checkImagePath(t.front_image_path, 'clean-check.png');
+  const backPath  = checkImagePath(t.back_image_path, 'back-of-check.png');
   const front = $('detailFrontImg');
   const back  = $('detailBackImg');
-  if (t.front_image_path) {
-    front.innerHTML = `<img src="${base}/checks/${encodeURIComponent(t.front_image_path)}" onerror="this.outerHTML='<span style=\\'color:#999;font-size:12px\\'>Unavail.</span>'">`;
-  }
-  if (t.back_image_path) {
-    back.innerHTML = `<img src="${base}/checks/${encodeURIComponent(t.back_image_path)}" onerror="this.outerHTML='<span style=\\'color:#999;font-size:12px\\'>Unavail.</span>'">`;
-  }
+  front.innerHTML = `<img src="/checks/${encodeURIComponent(frontPath)}" alt="Front of check" onerror="this.outerHTML='<span style=\\'color:#999;font-size:12px\\'>Unavail.</span>'">`;
+  back.innerHTML  = `<img src="/checks/${encodeURIComponent(backPath)}" alt="Back of check" onerror="this.outerHTML='<span style=\\'color:#999;font-size:12px\\'>Unavail.</span>'">`;
 
   $('actionFeedback').className = 'action-feedback';
-  $('detailApproveBtn').disabled = false;
-  $('detailRejectBtn').disabled  = false;
+  $('actionFeedback').style.display = 'none';
+  const canAct = (t.state === 'Analyzing');
+  $('detailApproveBtn').disabled = !canAct;
+  $('detailRejectBtn').disabled  = !canAct;
 
   loadAudit(t.id);
   showView('viewDetail');
+}
+
+async function openDetailFromTransferId(transferId, fromDeposits = false) {
+  try {
+    const r = await fetch(`${apiBase()}/operator/transfer/${encodeURIComponent(transferId)}`, fetchOpts());
+    if (!r.ok) {
+      if (r.status === 404) { alert('Deposit not found'); return; }
+      throw new Error(`HTTP ${r.status}`);
+    }
+    const t = await r.json();
+    openDetail(t, fromDeposits);
+  } catch (e) {
+    alert('Could not load deposit: ' + e.message);
+  }
 }
 
 async function loadAudit(transferId) {
@@ -971,7 +1031,7 @@ async function doAction(action) {
       fb.textContent = `${action === 'approve' ? 'Approved' : 'Rejected'} — state: ${j.state}`;
       allTransfers = allTransfers.filter(x => x.id !== selectedTransfer.id);
       applyFilter(activeFilter);
-      setTimeout(() => { navigateToPath('/operator/review-queue'); }, 1200);
+      setTimeout(() => { navigateToPath('/review-queue', true); }, 1200);
     } else {
       fb.className = 'action-feedback err';
       fb.textContent = `Error: ${j.error || r.status}`;
@@ -988,7 +1048,7 @@ async function doAction(action) {
 
 $('detailApproveBtn').onclick = () => doAction('approve');
 $('detailRejectBtn').onclick  = () => doAction('reject');
-$('breadcrumbBack').onclick   = () => navigateToPath('/operator/review-queue');
+$('breadcrumbBack').onclick  = () => navigateToPath(detailOpenedFromDeposits ? '/deposits' : '/review-queue');
 
 // sidebar nav
 function setActiveNav(id) {
@@ -998,16 +1058,16 @@ function setActiveNav(id) {
 }
 $('navReviewQueue').onclick = () => navigateToPath(NAV_TO_PATH.navReviewQueue);
 $('navSettlement').onclick  = () => navigateToPath(NAV_TO_PATH.navSettlement);
-$('navAuditLog').onclick    = () => navigateToPath(NAV_TO_PATH.navAuditLog);
+$('navDeposits').onclick    = () => navigateToPath(NAV_TO_PATH.navDeposits);
 document.querySelectorAll('.audit-filter-chip').forEach(chip => {
   chip.onclick = () => {
     document.querySelectorAll('.audit-filter-chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
-    loadAuditLog();
+    loadDeposits();
   };
 });
 const auditOpFilter = $('auditOperatorFilter');
-if (auditOpFilter) auditOpFilter.onchange = loadAuditLog;
+if (auditOpFilter) auditOpFilter.onchange = loadDeposits;
 
 async function loadSettlementView() {
   $('settlementResult').className = 'action-feedback';
@@ -1163,8 +1223,8 @@ function auditOperatorDisplay(operatorId) {
   if (operatorId && operatorId.startsWith('guest-')) return 'Guest';
   return OPERATOR_NAMES[operatorId] || operatorId || '—';
 }
-async function loadAuditLog() {
-  const el = $('auditLogList');
+async function loadDeposits() {
+  const el = $('depositsList');
   const actionChip = document.querySelector('.audit-filter-chip.active');
   const actionFilter = actionChip ? actionChip.dataset.action : 'all';
   const operatorFilter = ($('auditOperatorFilter') && $('auditOperatorFilter').value) || '';
@@ -1191,7 +1251,10 @@ async function loadAuditLog() {
     el.innerHTML = actions.map(a => {
       const { label, sub, actionClass } = auditActionDisplay(a);
       const operatorDisplay = auditOperatorDisplay(a.operator_id);
-      return `<div class="audit-item">
+      const tid = (a.transfer_id || '').trim();
+      const clickable = tid ? ' clickable' : '';
+      const dataId = tid ? ` data-transfer-id="${tid.replace(/"/g, '&quot;')}"` : '';
+      return `<div class="audit-item${clickable}"${dataId} title="${tid ? 'View deposit' : ''}">
         <div class="audit-action-wrap">
           <span class="audit-action ${actionClass}">${label}</span>
           ${sub ? `<span class="audit-action-sub">${sub}</span>` : ''}
@@ -1202,8 +1265,15 @@ async function loadAuditLog() {
         </div>
       </div>`;
     }).join('');
+    el.querySelectorAll('.audit-item.clickable[data-transfer-id]').forEach(item => {
+      const tid = item.getAttribute('data-transfer-id');
+      if (tid) item.onclick = () => {
+        history.pushState({}, '', DEPOSITS_PATH_PREFIX + encodeURIComponent(tid));
+        openDetailFromTransferId(tid, true);
+      };
+    });
   } catch (e) {
-    el.innerHTML = '<div style="color:var(--destructive);font-size:13px">Could not load audit log</div>';
+    el.innerHTML = '<div style="color:var(--destructive);font-size:13px">Could not load deposits</div>';
   }
 }
 
@@ -1212,7 +1282,7 @@ async function loadAuditLog() {
   if (!(await checkAuth())) return;
   await loadClockStatus();
   loadQueue();
-  navigateToPath(window.location.pathname || '/operator/review-queue', false);
+  navigateToPath(window.location.pathname || '/review-queue', false);
   window.addEventListener('popstate', () => navigateToPath(window.location.pathname, false));
   setInterval(() => loadQueue(), 10000);
   setInterval(() => {
