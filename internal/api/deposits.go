@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/checkstream/checkstream/internal/depositjob"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
 	"github.com/checkstream/checkstream/internal/operator"
@@ -34,6 +35,7 @@ type DepositHandler struct {
 	fundingSvc   *funding.Service
 	fundingCfg   *funding.Config
 	operatorRepo *operator.Repository
+	jobRepo      *depositjob.Repository
 	db           *sql.DB
 }
 
@@ -45,6 +47,7 @@ func NewDepositHandler(
 	fundingSvc *funding.Service,
 	fundingCfg *funding.Config,
 	operatorRepo *operator.Repository,
+	jobRepo *depositjob.Repository,
 	db *sql.DB,
 ) *DepositHandler {
 	return &DepositHandler{
@@ -54,11 +57,12 @@ func NewDepositHandler(
 		fundingSvc:   fundingSvc,
 		fundingCfg:   fundingCfg,
 		operatorRepo: operatorRepo,
+		jobRepo:      jobRepo,
 		db:           db,
 	}
 }
 
-// Create handles POST /deposits.
+// Create handles POST /deposits. Accepts the deposit and returns 202; processing runs async via deposit_jobs.
 func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req DepositRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -83,7 +87,7 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 1: Create transfer (Requested)
+	// Create transfer (Requested) and persist image paths for async worker
 	t, err := h.transferRepo.CreateTransfer(req.AccountID, req.Amount)
 	if err != nil {
 		log.Printf("deposit: create transfer: %v", err)
@@ -92,226 +96,199 @@ func (h *DepositHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	t.FrontImagePath = req.FrontImage
 	t.BackImagePath = req.BackImage
-
-	// Step 2: Transition to Validating
-	if err := t.Transition(transfer.StateValidating); err != nil {
-		log.Printf("deposit: transition to validating: %v", err)
-		writeError(w, http.StatusInternalServerError, "state transition error")
+	if err := h.transferRepo.UpdateTransferState(t); err != nil {
+		log.Printf("deposit: persist transfer images: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to save deposit")
 		return
+	}
+
+	scenario := r.Header.Get("X-Test-Scenario")
+	if scenario == "" {
+		scenario = req.Scenario
+	}
+	source := req.Source
+	if source == "" {
+		source = "api"
+	}
+	if err := h.jobRepo.Add(t.ID, scenario, source); err != nil {
+		log.Printf("deposit: enqueue job: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to enqueue deposit")
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"message":  "deposit accepted",
+		"transfer": t,
+	})
+}
+
+// ProcessDeposit runs the deposit pipeline (vendor → rules → ledger) for a transfer. Called by the async worker.
+// Transfer must be in Requested state; job must exist for scenario/source.
+func (h *DepositHandler) ProcessDeposit(transferID string) error {
+	t, err := h.transferRepo.GetTransfer(transferID)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return nil // no transfer, nothing to do
+	}
+	if t.State != transfer.StateRequested {
+		return nil // already processed or in progress
+	}
+
+	job, err := h.jobRepo.GetByTransferID(transferID)
+	if err != nil || job == nil {
+		return err
+	}
+
+	scenarioOverride := job.Scenario
+	depositSource := job.Source
+	if depositSource == "" {
+		depositSource = "api"
+	}
+
+	// Transition to Validating and persist
+	if err := t.Transition(transfer.StateValidating); err != nil {
+		return err
 	}
 	if err := h.transferRepo.UpdateTransferState(t); err != nil {
-		log.Printf("deposit: update validating state: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to update state")
-		return
+		return err
 	}
 
-	// Step 3: Call vendor stub
-	scenarioOverride := r.Header.Get("X-Test-Scenario")
-	if scenarioOverride == "" && req.Scenario != "" {
-		scenarioOverride = req.Scenario
-	}
 	vendorReq := &vendor.VendorRequest{
-		AccountID:  req.AccountID,
-		Amount:     req.Amount,
-		FrontImage: req.FrontImage,
-		BackImage:  req.BackImage,
+		AccountID:  t.AccountID,
+		Amount:     t.Amount,
+		FrontImage: t.FrontImagePath,
+		BackImage:  t.BackImagePath,
 		TransferID: t.ID,
 	}
 	vendorResp := h.vendorStub.Validate(vendorReq, scenarioOverride)
 
-	depositSource := req.Source
-	if depositSource == "" {
-		depositSource = "api"
-	}
-	// Step 4: Handle vendor response
-	trace.DepositTrace(t.ID, req.AccountID, "vendor_response", map[string]interface{}{
+	trace.DepositTrace(t.ID, t.AccountID, "vendor_response", map[string]interface{}{
 		"source":        depositSource,
 		"vendor_status": vendorResp.Status,
 		"reason":        vendorResp.Reason,
 	})
 	switch vendorResp.Status {
 	case "fail":
-		// Image quality failure → Rejected
-		if err := t.Transition(transfer.StateRejected); err != nil {
-			log.Printf("deposit: transition to rejected (fail): %v", err)
-		}
-		if err := h.transferRepo.UpdateTransferState(t); err != nil {
-			log.Printf("deposit: update rejected state: %v", err)
-		}
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
-			"error":    "image quality check failed",
-			"reason":   vendorResp.Reason,
-			"message":  vendorResp.Message,
-			"transfer": t,
-		})
-		return
-
+		_ = t.Transition(transfer.StateRejected)
+		_ = h.transferRepo.UpdateTransferState(t)
+		return nil
 	case "reject":
-		// Hard reject (e.g. duplicate from vendor) → Rejected
-		if err := t.Transition(transfer.StateRejected); err != nil {
-			log.Printf("deposit: transition to rejected (reject): %v", err)
-		}
-		if err := h.transferRepo.UpdateTransferState(t); err != nil {
-			log.Printf("deposit: update rejected state: %v", err)
-		}
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
-			"error":    "check rejected by vendor",
-			"reason":   vendorResp.Reason,
-			"transfer": t,
-		})
-		return
-
+		_ = t.Transition(transfer.StateRejected)
+		_ = h.transferRepo.UpdateTransferState(t)
+		return nil
 	case "flagged":
-		// Needs human review → Analyzing
-		trace.DepositTrace(t.ID, req.AccountID, "vendor_flagged", map[string]interface{}{"source": depositSource, "state": "Analyzing", "reason": vendorResp.Reason})
-		if err := t.Transition(transfer.StateAnalyzing); err != nil {
-			log.Printf("deposit: transition to analyzing: %v", err)
-		}
+		trace.DepositTrace(t.ID, t.AccountID, "vendor_flagged", map[string]interface{}{"source": depositSource, "state": "Analyzing", "reason": vendorResp.Reason})
+		_ = t.Transition(transfer.StateAnalyzing)
 		t.OCRAmount = vendorResp.OCRAmount
 		t.EnteredAmount = vendorResp.EnteredAmount
 		t.VendorResponse = marshalVendorScores(vendorResp)
-		if err := h.transferRepo.UpdateTransferState(t); err != nil {
-			log.Printf("deposit: update analyzing state: %v", err)
-		}
-		writeJSON(w, http.StatusAccepted, map[string]interface{}{
-			"message":  "check flagged for review",
-			"reason":   vendorResp.Reason,
-			"transfer": t,
-		})
-		return
-
+		_ = h.transferRepo.UpdateTransferState(t)
+		return nil
 	case "pass":
-		// Happy path — continue processing
+		// fall through
 	}
 
-	// Step 5: Transition Validating→Analyzing
 	if err := t.Transition(transfer.StateAnalyzing); err != nil {
-		log.Printf("deposit: transition to analyzing (pass): %v", err)
-		writeError(w, http.StatusInternalServerError, "state transition error")
-		return
+		return err
 	}
-
-	// Store vendor data in memory — do NOT persist transaction_id to DB yet
-	// (we need to check for duplicates first; persisting now would cause self-detection)
 	if vendorResp.MICR != nil {
 		micrJSON, _ := json.Marshal(vendorResp.MICR)
 		t.MICRData = string(micrJSON)
 	}
 	vendorTransactionID := vendorResp.TransactionID
 	t.VendorResponse = marshalVendorScores(vendorResp)
-	t.TransactionID = "" // don't persist yet
+	t.TransactionID = ""
 	if err := h.transferRepo.UpdateTransferState(t); err != nil {
-		log.Printf("deposit: update analyzing state: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to update state")
-		return
+		return err
 	}
-	t.TransactionID = vendorTransactionID // restore for business rules check
+	t.TransactionID = vendorTransactionID
 
-	// Step 6: Business rules validation — MUST run before transitioning to Approved
-	if err := h.fundingSvc.ValidateSession(req.AccountID); err != nil {
-		trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "session"})
+	if err := h.fundingSvc.ValidateSession(t.AccountID); err != nil {
+		trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "session"})
 		h.rejectTransfer(t, "invalid session")
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
-			"error":    err.Error(),
-			"transfer": t,
-		})
-		return
+		return nil
 	}
-	if err := h.fundingSvc.CheckEligibility(req.AccountID); err != nil {
-		trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "eligibility"})
+	if err := h.fundingSvc.CheckEligibility(t.AccountID); err != nil {
+		trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "eligibility"})
 		h.rejectTransfer(t, "account not eligible")
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
-			"error":    err.Error(),
-			"transfer": t,
-		})
-		return
+		return nil
 	}
-	if err := h.fundingSvc.CheckLimit(req.AccountID, req.Amount); err != nil {
-		trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "limit"})
+	if err := h.fundingSvc.CheckLimit(t.AccountID, t.Amount); err != nil {
+		trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "limit"})
 		h.rejectTransfer(t, "over limit")
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
-			"error":    err.Error(),
-			"transfer": t,
-		})
-		return
+		return nil
 	}
 	if t.TransactionID != "" {
 		if err := h.fundingSvc.CheckDuplicate(t.TransactionID); err != nil {
 			if errors.Is(err, funding.ErrDuplicate) {
-				trace.DepositTrace(t.ID, req.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "duplicate"})
+				trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "duplicate"})
 				h.rejectTransfer(t, "duplicate")
-				writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
-					"error":    err.Error(),
-					"transfer": t,
-				})
-				return
+				return nil
 			}
 		}
 	}
 
-	// Step 7: Transition Analyzing→Approved (all rules passed)
 	if err := t.Transition(transfer.StateApproved); err != nil {
-		log.Printf("deposit: transition to approved: %v", err)
-		writeError(w, http.StatusInternalServerError, "state transition error")
-		return
+		return err
 	}
 	if err := h.transferRepo.UpdateTransferState(t); err != nil {
-		log.Printf("deposit: update approved state: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to update state")
-		return
+		return err
 	}
+	t.ContributionType = h.fundingCfg.GetContributionDefault(t.AccountID)
 
-	// Step 8: Apply contribution default
-	t.ContributionType = h.fundingCfg.GetContributionDefault(req.AccountID)
-
-	// Step 10: Post ledger entry in DB transaction with state update
-	omnibusAcct := h.fundingCfg.GetOmnibusAccount(req.AccountID)
+	omnibusAcct := h.fundingCfg.GetOmnibusAccount(t.AccountID)
 	dbTx, err := h.db.Begin()
 	if err != nil {
-		log.Printf("deposit: begin tx: %v", err)
-		writeError(w, http.StatusInternalServerError, "transaction error")
-		return
+		return err
 	}
+	defer dbTx.Rollback()
 
-	_, err = h.ledgerSvc.CreateMovementEntry(dbTx, req.AccountID, omnibusAcct, t.ID, t.ContributionType, req.Amount)
-	if err != nil {
-		dbTx.Rollback()
-		log.Printf("deposit: create ledger entry: %v", err)
-		writeError(w, http.StatusInternalServerError, "ledger error")
-		return
+	if _, err := h.ledgerSvc.CreateMovementEntry(dbTx, t.AccountID, omnibusAcct, t.ID, t.ContributionType, t.Amount); err != nil {
+		return err
 	}
-
-	// Step 11: Transition → FundsPosted
 	if err := t.Transition(transfer.StateFundsPosted); err != nil {
-		dbTx.Rollback()
-		log.Printf("deposit: transition to funds posted: %v", err)
-		writeError(w, http.StatusInternalServerError, "state transition error")
-		return
+		return err
 	}
-
 	if _, err := dbTx.Exec(`UPDATE transfers SET state=?, contribution_type=?, transaction_id=?, micr_data=?, updated_at=? WHERE id=?`,
 		string(t.State), t.ContributionType, t.TransactionID, t.MICRData, t.UpdatedAt, t.ID); err != nil {
-		dbTx.Rollback()
-		log.Printf("deposit: update funds posted state: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to update state")
-		return
+		return err
 	}
-
 	if err := dbTx.Commit(); err != nil {
-		log.Printf("deposit: commit tx: %v", err)
-		writeError(w, http.StatusInternalServerError, "transaction commit error")
+		return err
+	}
+
+	if h.operatorRepo != nil {
+		_, _ = h.operatorRepo.RecordAction(t.ID, "auto_approve", "system", "passed validation, no operator review", "")
+	}
+	trace.DepositTrace(t.ID, t.AccountID, "funds_posted", map[string]interface{}{"source": depositSource, "state": string(t.State)})
+	return nil
+}
+
+// ProcessOneJob claims one pending deposit job and processes it. Used by tests to run the async worker once.
+func (h *DepositHandler) ProcessOneJob() bool {
+	job, ok, err := h.jobRepo.ClaimNext()
+	if err != nil || !ok {
+		return false
+	}
+	if err := h.ProcessDeposit(job.TransferID); err != nil {
+		_ = h.jobRepo.Fail(job.ID, err.Error())
+	} else {
+		_ = h.jobRepo.Complete(job.ID)
+	}
+	return true
+}
+
+// ProcessOneJobHTTP handles POST /sandbox/process-job. Processes one pending deposit job and returns {"processed": true/false}.
+// Used by the sandbox UI so scenarios can run synchronously after POST /deposits (202).
+func (h *DepositHandler) ProcessOneJobHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
-	// Record audit log entry for auto-approved deposits (mobile or API)
-	if h.operatorRepo != nil {
-		if _, err := h.operatorRepo.RecordAction(t.ID, "auto_approve", "system", "passed validation, no operator review", ""); err != nil {
-			log.Printf("deposit: record audit action: %v", err)
-		}
-	}
-	trace.DepositTrace(t.ID, req.AccountID, "funds_posted", map[string]interface{}{"source": depositSource, "state": string(t.State)})
-
-	writeJSON(w, http.StatusCreated, t)
+	processed := h.ProcessOneJob()
+	writeJSON(w, http.StatusOK, map[string]interface{}{"processed": processed})
 }
 
 // vendorScoresJSON is stored in transfer.vendor_response for operator queue display.
