@@ -12,7 +12,6 @@ import (
 
 	"github.com/checkstream/checkstream/internal/api"
 	"github.com/checkstream/checkstream/internal/auth"
-	appclock "github.com/checkstream/checkstream/internal/clock"
 	"github.com/checkstream/checkstream/internal/db"
 	"github.com/checkstream/checkstream/internal/funding"
 	"github.com/checkstream/checkstream/internal/ledger"
@@ -82,10 +81,6 @@ func main() {
 		log.Printf("warning: seed test operators: %v", err)
 	}
 	settlementEngine := settlement.NewEngine(database, transferRepo, ledgerSvc)
-	travelClock := appclock.NewTravelClock()
-	transferRepo.SetNowFunc(travelClock.Now)
-	operatorRepo.SetNowFunc(travelClock.Now)
-	settlementEngine.SetNowFunc(travelClock.Now)
 	returnSvc := returnpkg.NewService(database, transferRepo, ledgerSvc)
 
 	mux := http.NewServeMux()
@@ -169,17 +164,11 @@ func main() {
 
 	// Settlement routes (require operator login)
 	settlementHandler := api.NewSettlementHandler(settlementEngine)
-	settlementHandler.SetNowFunc(travelClock.Now)
 	mux.HandleFunc("GET /health/settlement", settlementHandler.SettlementHealth)
 	mux.HandleFunc("GET /settlement/status", auth.RequireOperator(settlementHandler.Status))
 	mux.HandleFunc("GET /settlement/report/last", auth.RequireOperator(settlementHandler.LastReport))
 	mux.HandleFunc("POST /settlement/report", auth.RequireOperator(settlementHandler.GenerateReport))
 	mux.HandleFunc("POST /settlement/trigger", auth.RequireOperator(settlementHandler.Trigger))
-
-	// Test-only time travel controls in operator portal.
-	clockHandler := api.NewClockHandler(travelClock)
-	mux.HandleFunc("GET /operator/clock", auth.RequireOperator(clockHandler.Get))
-	mux.HandleFunc("POST /operator/clock", auth.RequireOperator(clockHandler.Update))
 
 	// Returns routes
 	returnsHandler := api.NewReturnsHandler(returnSvc)
