@@ -166,6 +166,71 @@ func (r *Repository) GetTransfersByIDs(ids []string) ([]*Transfer, error) {
 	return transfers, rows.Err()
 }
 
+// CountTransfers returns the total number of transfers, optionally filtered by state.
+func (r *Repository) CountTransfers(state State) (int, error) {
+	query := "SELECT COUNT(*) FROM transfers"
+	args := []interface{}{}
+	if state != "" {
+		query += " WHERE state = ?"
+		args = append(args, string(state))
+	}
+	var n int
+	err := r.db.QueryRow(query, args...).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count transfers: %w", err)
+	}
+	return n, nil
+}
+
+// ListTransfersPaginated returns transfers with limit and offset, optionally filtered by state, newest first.
+func (r *Repository) ListTransfersPaginated(limit, offset int, state State) ([]*Transfer, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	query := `
+		SELECT id, account_id, amount, state,
+		       COALESCE(vendor_response,''), COALESCE(front_image_path,''), COALESCE(back_image_path,''),
+		       COALESCE(micr_data,''), COALESCE(ocr_amount,0), COALESCE(entered_amount,0),
+		       COALESCE(transaction_id,''), COALESCE(contribution_type,''),
+		       COALESCE(settlement_batch_id,''), COALESCE(settlement_ack_at,''),
+		       created_at, updated_at
+		FROM transfers`
+	args := []interface{}{}
+	if state != "" {
+		query += " WHERE state = ?"
+		args = append(args, string(state))
+	}
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list transfers: %w", err)
+	}
+	defer rows.Close()
+
+	var transfers []*Transfer
+	for rows.Next() {
+		t := &Transfer{}
+		err := rows.Scan(
+			&t.ID, &t.AccountID, &t.Amount, &t.State,
+			&t.VendorResponse, &t.FrontImagePath, &t.BackImagePath,
+			&t.MICRData, &t.OCRAmount, &t.EnteredAmount,
+			&t.TransactionID, &t.ContributionType,
+			&t.SettlementBatchID, &t.SettlementAckAt,
+			&t.CreatedAt, &t.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan transfer: %w", err)
+		}
+		transfers = append(transfers, t)
+	}
+	return transfers, rows.Err()
+}
+
 // ListTransfers returns all transfers, optionally filtered by state.
 func (r *Repository) ListTransfers(state State) ([]*Transfer, error) {
 	query := `
@@ -224,6 +289,75 @@ func (r *Repository) ListSettledTransfersSince(since time.Time) ([]*Transfer, er
 	rows, err := r.db.Query(query, string(StateCompleted), sinceStr)
 	if err != nil {
 		return nil, fmt.Errorf("list settled since: %w", err)
+	}
+	defer rows.Close()
+	var transfers []*Transfer
+	for rows.Next() {
+		t := &Transfer{}
+		err := rows.Scan(
+			&t.ID, &t.AccountID, &t.Amount, &t.State,
+			&t.VendorResponse, &t.FrontImagePath, &t.BackImagePath,
+			&t.MICRData, &t.OCRAmount, &t.EnteredAmount,
+			&t.TransactionID, &t.ContributionType,
+			&t.SettlementBatchID, &t.SettlementAckAt,
+			&t.CreatedAt, &t.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan transfer: %w", err)
+		}
+		transfers = append(transfers, t)
+	}
+	return transfers, rows.Err()
+}
+
+// SettlementBatchSummary is a row returned by ListSettlementBatches.
+type SettlementBatchSummary struct {
+	BatchID     string
+	SettlementAckAt string
+	Count       int
+	TotalAmount float64
+}
+
+// ListSettlementBatches returns distinct settlement batches (Completed transfers grouped by settlement_batch_id), newest first.
+func (r *Repository) ListSettlementBatches() ([]SettlementBatchSummary, error) {
+	query := `
+		SELECT settlement_batch_id, MIN(settlement_ack_at) AS ack_at, COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total
+		FROM transfers
+		WHERE state = ? AND settlement_batch_id != ''
+		GROUP BY settlement_batch_id
+		ORDER BY ack_at DESC`
+	rows, err := r.db.Query(query, string(StateCompleted))
+	if err != nil {
+		return nil, fmt.Errorf("list settlement batches: %w", err)
+	}
+	defer rows.Close()
+	var out []SettlementBatchSummary
+	for rows.Next() {
+		var s SettlementBatchSummary
+		err := rows.Scan(&s.BatchID, &s.SettlementAckAt, &s.Count, &s.TotalAmount)
+		if err != nil {
+			return nil, fmt.Errorf("scan settlement batch: %w", err)
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// ListTransfersBySettlementBatch returns all Completed transfers for the given settlement batch ID, ordered by settlement_ack_at.
+func (r *Repository) ListTransfersBySettlementBatch(batchID string) ([]*Transfer, error) {
+	query := `
+		SELECT id, account_id, amount, state,
+		       COALESCE(vendor_response,''), COALESCE(front_image_path,''), COALESCE(back_image_path,''),
+		       COALESCE(micr_data,''), COALESCE(ocr_amount,0), COALESCE(entered_amount,0),
+		       COALESCE(transaction_id,''), COALESCE(contribution_type,''),
+		       COALESCE(settlement_batch_id,''), COALESCE(settlement_ack_at,''),
+		       created_at, updated_at
+		FROM transfers
+		WHERE state = ? AND settlement_batch_id = ?
+		ORDER BY settlement_ack_at ASC`
+	rows, err := r.db.Query(query, string(StateCompleted), batchID)
+	if err != nil {
+		return nil, fmt.Errorf("list transfers by batch: %w", err)
 	}
 	defer rows.Close()
 	var transfers []*Transfer
