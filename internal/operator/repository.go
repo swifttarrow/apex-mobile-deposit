@@ -72,7 +72,7 @@ func (r *Repository) ListFlaggedTransfers(dateFilter, accountFilter string, amou
 		query += " AND amount <= ?"
 		args = append(args, amountMax)
 	}
-	query += " ORDER BY created_at ASC"
+	query += " ORDER BY created_at DESC"
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 	}
