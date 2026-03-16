@@ -572,8 +572,7 @@
         <p style="font-size:12px;color:var(--muted-foreground);margin-bottom:16px" id="lastReportAtLine">Last report: —</p>
         <button class="action-btn btn-approve" id="generateReportBtn">Generate Report</button>
         <div id="settlementResult" class="action-feedback" style="margin-top:12px"></div>
-      </div>
-      <div class="d-card" style="margin:24px 28px;max-width:560px">
+        <div style="height:1px;background:var(--border);margin:20px 0"></div>
         <div class="d-card-title">Previous settlement reports</div>
         <p style="font-size:13px;color:var(--muted-foreground);margin-bottom:12px">Expand a report to see individual deposits. Download as JSON (array of settlements) or X9 ICL (when available).</p>
         <div id="settlementReportsList" class="settlement-reports-list">Loading…</div>
@@ -682,6 +681,9 @@ let ledgerTransfers = [];
 const LEDGER_PAGE_SIZE = 25;
 let settlementClock = { now: null };
 let clockTickTimer = null;
+let statusLastReportAt = '';
+let reportsLastAckAt = '';
+let settlementReports = [];
 const DEPOSITS_PATH_PREFIX = '/deposits/';
 const ROUTES = {
   '/': { view: 'viewQueue', nav: 'navReviewQueue', title: 'Review Queue' },
@@ -702,6 +704,23 @@ function apiBase() {
 }
 function fetchOpts(opts = {}) {
   return { credentials: 'include', ...opts };
+}
+
+function refreshLastReportLine() {
+  const lastReportEl = $('lastReportAtLine');
+  if (!lastReportEl) return;
+  const ts = statusLastReportAt || reportsLastAckAt;
+  lastReportEl.textContent = ts ? 'Last report: ' + fmtDateTime(ts) : 'Last report: —';
+}
+
+function reportLabel(ts) {
+  if (!ts) return 'Report';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return 'Report';
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yyyy = String(d.getFullYear());
+  return `Report (${mm}-${dd}-${yyyy})`;
 }
 
 // ── Auth ──
@@ -934,7 +953,7 @@ function statusBadge(state) {
   if (!state) return '<span class="badge badge-flagged">—</span>';
   const s = String(state).toLowerCase();
   const label = stateDisplayLabel(state);
-  if (s === 'analyzing') return '<span class="badge badge-flagged">Flagged</span>';
+  if (s === 'analyzing') return '<span class="badge badge-flagged">' + label + '</span>';
   if (s === 'approved' || s === 'fundsposted' || s === 'completed') return '<span class="badge badge-approved">' + label + '</span>';
   if (s === 'rejected' || s === 'returned') return '<span class="badge badge-rejected">' + label + '</span>';
   return '<span class="badge">' + label + '</span>';
@@ -1146,7 +1165,6 @@ async function loadSettlementView() {
   if (listEl) listEl.textContent = 'Loading…';
 
   const FETCH_TIMEOUT_MS = 12000;
-
   function applyStatus(status) {
     if (status && typeof status === 'object') {
       const unsettledCount = Number(status.unsettled_count);
@@ -1159,12 +1177,13 @@ async function loadSettlementView() {
       $('settlementPendingBadge').style.display = (unsettledCount || 0) > 0 ? 'inline' : 'none';
       $('settlementSettledCount').textContent = Number.isInteger(settledCount) ? String(settledCount) : '—';
       $('settlementSettledAmount').textContent = !Number.isNaN(settledAmount) ? fmt(settledAmount) + ' total' : '—';
-      const lastReportEl = $('lastReportAtLine');
-      if (lastReportEl) lastReportEl.textContent = status.last_report_at ? 'Last report: ' + fmtDateTime(status.last_report_at) : 'Last report: —';
+      statusLastReportAt = (typeof status.last_report_at === 'string' && status.last_report_at.trim()) ? status.last_report_at : '';
+      refreshLastReportLine();
       const unreportedEl = $('unreportedSettlementLine');
       if (unreportedEl) {
-        const n = Number(status.unreported_settlement_count);
-        const amt = Number(status.unreported_settlement_amount);
+        // Some API responses may omit zero-value fields; treat omitted as 0 rather than unknown.
+        const n = Number(status.unreported_settlement_count ?? 0);
+        const amt = Number(status.unreported_settlement_amount ?? 0);
         if (Number.isInteger(n) && n >= 0) {
           const amtStr = !Number.isNaN(amt) ? fmt(amt) + ' total' : '';
           unreportedEl.textContent = amtStr
@@ -1176,7 +1195,7 @@ async function loadSettlementView() {
       }
       const reportBtn = $('generateReportBtn');
       if (reportBtn) {
-        const unreported = Number(status.unreported_settlement_count);
+        const unreported = Number(status.unreported_settlement_count ?? 0);
         reportBtn.disabled = !Number.isInteger(unreported) || unreported <= 0;
       }
   } else {
@@ -1243,13 +1262,18 @@ function applyReportsList(reportsResult) {
   }
   const reports = reportsResult.reports || [];
   if (reports.length === 0) {
+    reportsLastAckAt = '';
+    refreshLastReportLine();
     listEl.textContent = 'No settlement reports yet. Run settlement and generate a report to see batches here.';
     return;
   }
+  settlementReports = reports.slice();
+  reportsLastAckAt = (typeof reports[0].settlement_ack_at === 'string' && reports[0].settlement_ack_at.trim()) ? reports[0].settlement_ack_at : '';
+  refreshLastReportLine();
   listEl.textContent = '';
   listEl.innerHTML = '';
   reports.forEach(r => {
-        const shortId = (r.batch_id || '').slice(0, 8);
+        const label = reportLabel(r.settlement_ack_at);
         const row = document.createElement('div');
         row.className = 'settlement-report-row';
         row.dataset.batchId = r.batch_id || '';
@@ -1257,7 +1281,7 @@ function applyReportsList(reportsResult) {
           <div class="settlement-report-head">
             <span class="settlement-report-chevron" aria-hidden="true">▶</span>
             <div class="settlement-report-meta">
-              <span class="settlement-report-batch">${escapeHtml(shortId)}</span>
+              <span class="settlement-report-batch">${escapeHtml(label)}</span>
               <span class="settlement-report-date">${r.settlement_ack_at ? fmtDateTime(r.settlement_ack_at) : '—'}</span>
               <span class="settlement-report-count">${r.count ?? 0} deposit(s)</span>
               <span class="settlement-report-amount">$${typeof r.total_amount === 'number' ? r.total_amount.toFixed(2) : '0.00'}</span>
@@ -1372,9 +1396,31 @@ $('generateReportBtn').onclick = async () => {
     const r = await fetch(`${apiBase()}/settlement/report`, { method: 'POST', ...fetchOpts() });
     const j = await r.json();
     if (r.ok) {
+      const totalCount = Number(j.total_count ?? 0);
+      const totalAmount = Number(j.total_amount ?? 0);
+      const reportID = j.report_id || '';
+      const reportTs = j.last_report_at || j.created_at || '';
+      if (reportID) {
+        const fresh = {
+          batch_id: reportID,
+          settlement_ack_at: reportTs,
+          count: Number.isInteger(totalCount) ? totalCount : 0,
+          total_amount: Number.isNaN(totalAmount) ? 0 : totalAmount,
+        };
+        settlementReports = [fresh, ...settlementReports.filter((x) => (x.batch_id || '') !== reportID)];
+        applyReportsList({ ok: true, reports: settlementReports });
+      }
+      statusLastReportAt = reportTs || statusLastReportAt;
+      refreshLastReportLine();
+      const unreportedEl = $('unreportedSettlementLine');
+      if (unreportedEl && Number.isInteger(totalCount)) {
+        // After generating a report, all reportable settlements are consumed.
+        unreportedEl.textContent = 'Settlements not yet in a report: 0 ($0.00 total)';
+      }
+      const reportBtn = $('generateReportBtn');
+      if (reportBtn) reportBtn.disabled = true;
       el.className = 'action-feedback ok';
-      el.textContent = `Report generated. ${j.total_count ?? 0} transfers since last report, $${(j.total_amount ?? 0).toFixed(2)} total. Last report at: ${j.last_report_at ? fmtDateTime(j.last_report_at) : '—'}`;
-      loadSettlementView(); // refresh status and last report
+      el.textContent = `Report generated. ${totalCount || 0} transfers since last report, $${(Number.isNaN(totalAmount) ? 0 : totalAmount).toFixed(2)} total. Last report at: ${reportTs ? fmtDateTime(reportTs) : '—'}`;
     } else {
       el.className = 'action-feedback err';
       el.textContent = j.error || `Error ${r.status}`;

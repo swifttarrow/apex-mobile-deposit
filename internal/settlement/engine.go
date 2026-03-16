@@ -327,7 +327,8 @@ func (e *Engine) ReportSinceLastReport() (report *SettlementFile, lastReportAt t
 	}
 	now := e.nowFn().UTC()
 	report = &SettlementFile{
-		BatchID:    fmt.Sprintf("report-%s", now.Format("20060102-150405")),
+		// Include a UUID suffix so repeated clicks in the same second never reuse a report ID.
+		BatchID:    fmt.Sprintf("report-%s-%s", now.Format("20060102-150405"), uuid.NewString()[:8]),
 		CreatedAt:  now.Format(time.RFC3339),
 		Transfers:  make([]SettlementEntry, 0, len(transfers)),
 		TotalCount: len(transfers),
