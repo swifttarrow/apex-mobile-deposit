@@ -171,10 +171,12 @@ func (h *DepositHandler) ProcessDeposit(transferID string) error {
 	})
 	switch vendorResp.Status {
 	case "fail":
+		t.VendorResponse = marshalVendorScores(vendorResp)
 		_ = t.Transition(transfer.StateRejected)
 		_ = h.transferRepo.UpdateTransferState(t)
 		return nil
 	case "reject":
+		t.VendorResponse = marshalVendorScores(vendorResp)
 		_ = t.Transition(transfer.StateRejected)
 		_ = h.transferRepo.UpdateTransferState(t)
 		return nil

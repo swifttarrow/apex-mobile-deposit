@@ -124,6 +124,17 @@ func TestDeposit_IQABlur(t *testing.T) {
 	if t2["state"] != "Rejected" {
 		t.Errorf("expected Rejected state, got %v", t2["state"])
 	}
+	vendorResp, _ := t2["vendor_response"].(string)
+	if vendorResp == "" {
+		t.Fatal("expected vendor_response to be populated for IQA blur rejection")
+	}
+	var vendorScores map[string]interface{}
+	if err := json.Unmarshal([]byte(vendorResp), &vendorScores); err != nil {
+		t.Fatalf("expected vendor_response JSON, got err: %v", err)
+	}
+	if got := vendorScores["reason"]; got != "blur" {
+		t.Errorf("expected vendor_response reason blur, got %v", got)
+	}
 }
 
 func TestDeposit_IQAGlare(t *testing.T) {
@@ -155,6 +166,17 @@ func TestDeposit_IQAGlare(t *testing.T) {
 	json.Unmarshal(getRR.Body.Bytes(), &t2)
 	if t2["state"] != "Rejected" {
 		t.Errorf("expected Rejected state, got %v", t2["state"])
+	}
+	vendorResp, _ := t2["vendor_response"].(string)
+	if vendorResp == "" {
+		t.Fatal("expected vendor_response to be populated for IQA glare rejection")
+	}
+	var vendorScores map[string]interface{}
+	if err := json.Unmarshal([]byte(vendorResp), &vendorScores); err != nil {
+		t.Fatalf("expected vendor_response JSON, got err: %v", err)
+	}
+	if got := vendorScores["reason"]; got != "glare" {
+		t.Errorf("expected vendor_response reason glare, got %v", got)
 	}
 }
 
