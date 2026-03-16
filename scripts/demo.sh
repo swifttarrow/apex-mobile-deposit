@@ -2,13 +2,15 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
+COOKIE_JAR="${COOKIE_JAR:-$(mktemp)}"
+trap 'rm -f "$COOKIE_JAR"' EXIT
 
 echo "========================================"
 echo "Checkdepot Mobile Check Deposit Demo"
 echo "========================================"
 echo ""
 
-# Helper function
+# Helper: unauthenticated request
 request() {
   local method="$1"
   local path="$2"
@@ -26,6 +28,22 @@ request() {
   fi
 }
 
+# Helper: request with operator session cookie (use after guest login)
+request_operator() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  if [ -n "$body" ]; then
+    curl -s -X "$method" "$BASE_URL$path" \
+      -H "Content-Type: application/json" \
+      -b "$COOKIE_JAR" \
+      -d "$body" | jq .
+  else
+    curl -s -X "$method" "$BASE_URL$path" \
+      -b "$COOKIE_JAR" | jq .
+  fi
+}
+
 echo "--- Health Check ---"
 request GET /health
 echo ""
@@ -35,7 +53,7 @@ CLEAN=$(curl -s -X POST "$BASE_URL/deposits" \
   -H "Content-Type: application/json" \
   -d '{"account_id":"ACC-001","amount":150.00,"front_image":"base64_front","back_image":"base64_back"}')
 echo "$CLEAN" | jq .
-CLEAN_ID=$(echo "$CLEAN" | jq -r '.id')
+CLEAN_ID=$(echo "$CLEAN" | jq -r '.transfer.id')
 echo ""
 
 echo "--- Get Deposit Status ---"
@@ -58,12 +76,16 @@ echo "$MICR" | jq .
 MICR_ID=$(echo "$MICR" | jq -r '.transfer.id')
 echo ""
 
+echo "--- Operator Guest Login (for queue, approve/reject, settlement) ---"
+curl -s -X POST "$BASE_URL/operator/guest" -c "$COOKIE_JAR" -H "Content-Type: application/json" -d '{}' | jq .
+echo ""
+
 echo "--- Operator Queue ---"
-request GET /operator/queue
+request_operator GET /operator/queue
 echo ""
 
 echo "--- Operator Approves MICR Fail ---"
-request POST /operator/approve "{\"transfer_id\":\"$MICR_ID\",\"operator_id\":\"op-001\",\"note\":\"manually verified MICR\"}"
+request_operator POST /operator/approve "{\"transfer_id\":\"$MICR_ID\",\"note\":\"manually verified MICR\"}"
 echo ""
 
 echo "--- Scenario 5: Amount Mismatch → Flagged ---"
@@ -75,7 +97,7 @@ MISMATCH_ID=$(echo "$MISMATCH" | jq -r '.transfer.id')
 echo ""
 
 echo "--- Operator Rejects Amount Mismatch ---"
-request POST /operator/reject "{\"transfer_id\":\"$MISMATCH_ID\",\"operator_id\":\"op-001\",\"note\":\"amount mismatch confirmed\"}"
+request_operator POST /operator/reject "{\"transfer_id\":\"$MISMATCH_ID\",\"note\":\"amount mismatch confirmed\"}"
 echo ""
 
 echo "--- Scenario 6: Over Deposit Limit (ACC-OVER-LIMIT, \$6000) ---"
@@ -94,7 +116,7 @@ echo "--- Scenario 9: Return/Reversal ---"
 RETURN_DEPOSIT=$(curl -s -X POST "$BASE_URL/deposits" \
   -H "Content-Type: application/json" \
   -d '{"account_id":"ACC-001","amount":500.00,"front_image":"front","back_image":"back"}')
-RETURN_ID=$(echo "$RETURN_DEPOSIT" | jq -r '.id')
+RETURN_ID=$(echo "$RETURN_DEPOSIT" | jq -r '.transfer.id')
 echo "Deposited transfer: $RETURN_ID"
 echo ""
 
@@ -117,7 +139,7 @@ curl -s -X POST "$BASE_URL/deposits" \
 echo ""
 
 echo "--- Scenario 11: Settlement Trigger ---"
-request POST /settlement/trigger
+request_operator POST /settlement/trigger '{}'
 echo ""
 
 echo "--- Ledger Entries ---"
