@@ -244,6 +244,13 @@ stateDiagram-v2
           let unpauseResolve = null;
           let animating = false;
           let activeMarkerPaths = [];
+          let baseViewBox = null;
+          let currentViewBox = null;
+          let followViewSize = null;
+          let viewBoxAnimToken = 0;
+          let nodeMap = null;
+          let isPanning = false;
+          let panLastClient = null;
 
           function getDelayMs() { return parseInt(document.getElementById('speedSlider')?.value || 1000, 10); }
           function waitWithPause(ms) {
@@ -289,6 +296,146 @@ stateDiagram-v2
           function edgeKey(from, to) {
             const n = (s) => s === '[*]' ? 'start' : s;
             return n(from) + '->' + n(to);
+          }
+
+          function parseViewBox(attr) {
+            if (!attr) return null;
+            const parts = String(attr).trim().split(/\s+/).map(Number);
+            if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return null;
+            return { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+          }
+
+          function getCurrentSvgViewBox() {
+            if (!svgRoot) return null;
+            const parsed = parseViewBox(svgRoot.getAttribute('viewBox'));
+            if (parsed) return parsed;
+            const width = Number(svgRoot.getAttribute('width')) || svgRoot.clientWidth || 1;
+            const height = Number(svgRoot.getAttribute('height')) || svgRoot.clientHeight || 1;
+            return { x: 0, y: 0, w: width, h: height };
+          }
+
+          function setSvgViewBox(vb) {
+            if (!svgRoot || !vb) return;
+            svgRoot.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+            currentViewBox = { ...vb };
+          }
+
+          function captureBaseViewBox() {
+            const vb = getCurrentSvgViewBox();
+            if (!vb) return;
+            baseViewBox = { ...vb };
+            currentViewBox = { ...vb };
+          }
+
+          function clampViewBox(vb, bounds) {
+            if (!vb || !bounds) return vb;
+            const w = Math.min(vb.w, bounds.w);
+            const h = Math.min(vb.h, bounds.h);
+            let x = vb.x;
+            let y = vb.y;
+            if (x < bounds.x) x = bounds.x;
+            if (y < bounds.y) y = bounds.y;
+            if (x + w > bounds.x + bounds.w) x = bounds.x + bounds.w - w;
+            if (y + h > bounds.y + bounds.h) y = bounds.y + bounds.h - h;
+            return { x, y, w, h };
+          }
+
+          function animateViewBox(target, duration = 220) {
+            if (!svgRoot || !target) return Promise.resolve();
+            const from = currentViewBox || getCurrentSvgViewBox();
+            if (!from) return Promise.resolve();
+            if (duration <= 0) {
+              setSvgViewBox(target);
+              return Promise.resolve();
+            }
+            const token = ++viewBoxAnimToken;
+            return new Promise((resolve) => {
+              const start = performance.now();
+              const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+              const step = (now) => {
+                if (token !== viewBoxAnimToken) return resolve();
+                const t = Math.min(1, (now - start) / duration);
+                const e = easeOutCubic(t);
+                setSvgViewBox({
+                  x: from.x + (target.x - from.x) * e,
+                  y: from.y + (target.y - from.y) * e,
+                  w: from.w + (target.w - from.w) * e,
+                  h: from.h + (target.h - from.h) * e
+                });
+                if (t < 1) requestAnimationFrame(step);
+                else resolve();
+              };
+              requestAnimationFrame(step);
+            });
+          }
+
+          function resetViewport(animated = false) {
+            if (!svgRoot) return;
+            if (!baseViewBox) captureBaseViewBox();
+            if (!baseViewBox) return;
+            followViewSize = null;
+            // Cancel in-flight animation before returning to full diagram view.
+            viewBoxAnimToken++;
+            if (animated) return animateViewBox(baseViewBox, 240);
+            setSvgViewBox(baseViewBox);
+          }
+
+          function initFollowViewSize() {
+            if (!baseViewBox) return null;
+            // Keep one fixed zoom level for the whole run, then only pan/recenter.
+            const fixedZoom = 2.6;
+            followViewSize = {
+              w: baseViewBox.w / fixedZoom,
+              h: baseViewBox.h / fixedZoom
+            };
+            return followViewSize;
+          }
+
+          function focusElement(el) {
+            if (!svgRoot || !el || !el.getBBox) return;
+            if (!baseViewBox) captureBaseViewBox();
+            if (!baseViewBox) return;
+            const viewSize = followViewSize || initFollowViewSize();
+            if (!viewSize) return;
+            let bb = null;
+            try {
+              bb = el.getBBox();
+            } catch (e) {
+              return;
+            }
+            if (!bb || bb.width <= 0 || bb.height <= 0) return;
+            const bounds = baseViewBox;
+            const cx = bb.x + bb.width / 2;
+            const cy = bb.y + bb.height / 2;
+            const target = clampViewBox(
+              { x: cx - viewSize.w / 2, y: cy - viewSize.h / 2, w: viewSize.w, h: viewSize.h },
+              bounds
+            );
+            animateViewBox(target, 180);
+          }
+
+          function getNodeNameKey(name) {
+            return String(name || '').replace(/\s+/g, '').toLowerCase();
+          }
+
+          function buildNodeMap() {
+            nodeMap = {};
+            if (!svgRoot) return;
+            const register = (key, el) => {
+              if (!key || !el || nodeMap[key]) return;
+              nodeMap[key] = el;
+            };
+            svgRoot.querySelectorAll('g').forEach((g) => {
+              const id = (g.id || '').trim();
+              if (id) {
+                const idNorm = id.replace(/^state-/, '');
+                register(getNodeNameKey(idNorm), g);
+              }
+              const text = g.querySelector('text,tspan');
+              const label = (text?.textContent || '').trim();
+              if (label) register(getNodeNameKey(label), g);
+            });
+            register('start', svgRoot.querySelector('[id="start"]') || svgRoot.querySelector('[id*="start"]'));
           }
 
           function buildEdgeMap() {
@@ -362,10 +509,101 @@ stateDiagram-v2
           function findNode(name) {
             if (!svgRoot) return null;
             const n = name === '[*]' ? 'start' : name;
+            if (!nodeMap) buildNodeMap();
+            const byMap = nodeMap?.[getNodeNameKey(n)];
+            if (byMap) return byMap;
             const found = svgRoot.querySelector('[id="' + n + '"]') || svgRoot.querySelector('[id="state-' + n + '"]') || svgRoot.querySelector('[id*="' + n + '"]');
             if (found) return found;
             const nLower = n.toLowerCase();
             return svgRoot.querySelector('[id="' + nLower + '"]') || svgRoot.querySelector('[id*="' + nLower + '"]');
+          }
+
+          function panViewport(deltaClientX, deltaClientY) {
+            if (!svgRoot || !currentViewBox || !baseViewBox) return;
+            const rect = svgRoot.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const dx = (deltaClientX / rect.width) * currentViewBox.w;
+            const dy = (deltaClientY / rect.height) * currentViewBox.h;
+            const target = clampViewBox(
+              {
+                x: currentViewBox.x + dx,
+                y: currentViewBox.y + dy,
+                w: currentViewBox.w,
+                h: currentViewBox.h
+              },
+              baseViewBox
+            );
+            // Cancel follow animation when user takes over camera.
+            viewBoxAnimToken++;
+            setSvgViewBox(target);
+          }
+
+          function zoomViewport(clientX, clientY, zoomFactor) {
+            if (!svgRoot || !currentViewBox || !baseViewBox) return;
+            const rect = svgRoot.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const minW = baseViewBox.w / 5.5;
+            const maxW = baseViewBox.w;
+            let newW = currentViewBox.w / zoomFactor;
+            newW = Math.max(minW, Math.min(maxW, newW));
+            const newH = (newW / baseViewBox.w) * baseViewBox.h;
+
+            const px = (clientX - rect.left) / rect.width;
+            const py = (clientY - rect.top) / rect.height;
+            const worldX = currentViewBox.x + currentViewBox.w * px;
+            const worldY = currentViewBox.y + currentViewBox.h * py;
+            const target = clampViewBox(
+              {
+                x: worldX - newW * px,
+                y: worldY - newH * py,
+                w: newW,
+                h: newH
+              },
+              baseViewBox
+            );
+            followViewSize = { w: target.w, h: target.h };
+            viewBoxAnimToken++;
+            setSvgViewBox(target);
+          }
+
+          function attachManualCameraControls() {
+            if (!diagramEl) return;
+            diagramEl.addEventListener('wheel', (e) => {
+              if (!svgRoot) return;
+              if (!currentViewBox) currentViewBox = getCurrentSvgViewBox();
+              if (!baseViewBox) captureBaseViewBox();
+              e.preventDefault();
+              // Cmd/Ctrl wheel can still zoom. Plain wheel pans by default.
+              if (e.ctrlKey || e.metaKey || e.altKey) {
+                const zoomFactor = e.deltaY < 0 ? 1.12 : 0.9;
+                zoomViewport(e.clientX, e.clientY, zoomFactor);
+                return;
+              }
+              panViewport(e.deltaX, e.deltaY);
+            }, { passive: false });
+
+            diagramEl.addEventListener('mousedown', (e) => {
+              if (!svgRoot) return;
+              if (!currentViewBox) currentViewBox = getCurrentSvgViewBox();
+              if (!baseViewBox) captureBaseViewBox();
+              isPanning = true;
+              panLastClient = { x: e.clientX, y: e.clientY };
+              diagramEl.style.cursor = 'grabbing';
+              e.preventDefault();
+            });
+            window.addEventListener('mousemove', (e) => {
+              if (!isPanning || !panLastClient) return;
+              const dx = e.clientX - panLastClient.x;
+              const dy = e.clientY - panLastClient.y;
+              panViewport(dx, dy);
+              panLastClient = { x: e.clientX, y: e.clientY };
+            });
+            window.addEventListener('mouseup', () => {
+              if (!isPanning) return;
+              isPanning = false;
+              panLastClient = null;
+              diagramEl.style.cursor = '';
+            });
           }
 
           function styleMarkers(edgePath, color) {
@@ -425,11 +663,15 @@ stateDiagram-v2
               svgRoot.setAttribute('preserveAspectRatio', 'xMidYMid meet');
               svgRoot.style.width = '100%';
               svgRoot.style.height = '100%';
+              captureBaseViewBox();
               buildEdgeMap();
+              buildNodeMap();
               const dottedEdge = edgeMap && edgeMap['requested->sendtovendorasync'];
               if (dottedEdge) dottedEdge.classList.add('edge-async-dotted');
             }
           }).catch(() => {});
+
+          attachManualCameraControls();
 
           window.__flowDiagram = {
             animatePath: async function(segments, isFail) {
