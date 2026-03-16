@@ -226,4 +226,91 @@
 | Deployed + public                         | ✓           | ✓             |
 | Pre-Search, Social post                   | —           | Required      |
 
+---
+
+## 14. Async Deposit Pipeline: Options
+
+*Combined from `async-deposit-pipeline-options.md`.*
+
+### Current behavior
+
+`POST /deposits` runs the full pipeline in the request handler:
+
+1. Create transfer (Requested) → transition to Validating, persist
+2. Call vendor stub (sync)
+3. On pass: Validating → Analyzing → business rules → Approved → ledger → **FundsPosted** → return **201** with transfer  
+4. On fail/reject: persist Rejected, return 4xx with transfer  
+5. On flagged: persist Analyzing, return **202** with transfer  
+
+So a "clean pass" deposit blocks until vendor + funding + ledger complete and returns 201 with state `FundsPosted`. The mobile then sees FundsPosted immediately instead of Submitted → Processing → Funds Posted.
+
+### Goal
+
+- `POST /deposits` should **accept** the deposit and return quickly (e.g. **202 Accepted**) with the transfer in **Requested** or **Validating**.
+- The pipeline (vendor → business rules → ledger → state updates) should run **asynchronously**.
+- Clients (e.g. mobile) can poll `GET /deposits/:id` to see state move: Requested → Validating → Analyzing → (Approved →) FundsPosted (or Rejected/Returned).
+
+### What the async worker needs
+
+The existing pipeline logic (vendor call, business rules, ledger, transitions) needs, per deposit:
+
+- **Transfer ID** (already created and persisted)
+- **Request payload**: `account_id`, `amount`, `front_image`, `back_image`, `scenario`, `source` (and any new fields)
+
+Today the handler only persists transfer rows with `id, account_id, amount, state, created_at, updated_at`. Image paths and scenario are set in memory and used in the same request. So for async we must either:
+
+- **A)** Persist enough on the transfer (e.g. `front_image_path`, `back_image_path`, and a small metadata/scenario field) before returning 202, so the worker can load the transfer by ID and run the pipeline, or  
+- **B)** Store the full request (or a job payload) in a separate table or message so the worker has everything without re-reading the request body.
+
+---
+
+### Option 1: In-process goroutine (no queue)
+
+**Idea:**  
+`POST /deposits` creates the transfer, persists it (and any needed request fields), starts a **goroutine** that runs the current pipeline (vendor → rules → ledger), and returns **202** with the transfer in Requested (or Validating).
+
+**Pros:** No new dependencies; minimal code change; fits single-binary, SQLite, single-node.  
+**Cons:** Jobs in-memory only (restart loses in-flight); no backpressure; no horizontal scaling.  
+**Good for:** Local/demo, or first step before a real queue.
+
+### Option 2: Database-backed job table (polling worker)
+
+**Idea:** Add `deposit_jobs (id, transfer_id, status, ...)`. POST creates transfer + job row (pending), returns 202. Background goroutine polls, claims a row, runs pipeline, sets done/failed.
+
+**Pros:** No new infra; survives restart; same binary (like settlement ticker).  
+**Cons:** Polling latency; careful claim semantics.  
+**Good for:** Durable, no new services.
+
+### Option 3: Redis (or asynq) queue
+
+**Idea:** Enqueue job to Redis; workers dequeue and run pipeline.  
+**Pros:** Fast; at-least-once; backpressure and scaling.  
+**Cons:** New dependency (Redis).  
+**Good for:** Production or "real" queue without full broker.
+
+### Option 4: Dedicated broker (SQS, RabbitMQ, NATS)
+
+**Idea:** Same as Option 3 with SQS/RabbitMQ/NATS.  
+**Good for:** Production at scale or when broker already in stack.
+
+### Recommendation (by context)
+
+| Context | Suggestion |
+|--------|------------|
+| **Minimal change / demo** | **Option 1 (goroutine)**. Return 202, run pipeline in goroutine; optional worker pool. |
+| **Durable, no new services** | **Option 2 (DB job table)**. POST creates transfer + job, returns 202; polling worker(s). |
+| **Production / multi-node** | **Option 3 (Redis)** or **Option 4 (broker)**. |
+
+### Implementation outline (any option)
+
+1. **Persist request data for async** — Worker must run without HTTP body: persist `front_image_path`, `back_image_path`, scenario (or JSON blob) on transfer or job row.
+2. **Split handler** — Sync: validate → create transfer → persist (+ images, scenario) → enqueue/start async → return **202**. Async: load transfer, run Validating → FundsPosted/Rejected/Analyzing.
+3. **Response contract** — 202 body: `{ "message": "deposit accepted", "transfer": { "id": "...", "state": "Requested", ... } }`. Client polls `GET /deposits/:id`.
+4. **Mobile/tests** — Expect 202; poll until terminal state; E2E assert 202 + optional poll to FundsPosted.
+5. **Idempotency** — Apply to create + enqueue so duplicate request doesn’t create two transfers or two jobs.
+
+### Next step
+
+Choose an option (e.g. Option 1 for speed, Option 2 for durability), then implement: (1) persist request data for async, (2) 202 response path, (3) extracted pipeline function, (4) worker, (5) client polling and tests.
+
 
