@@ -685,11 +685,6 @@
       <div class="history-header">
         <div class="history-title-row">
           <div class="page-title">Deposits</div>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
-            <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
-            <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-          </svg>
         </div>
       </div>
       <div class="search-bar">
@@ -1281,6 +1276,8 @@ function reasonToExplanation(reason) {
     micr_fail: 'The check numbers could not be read. Ensure the full check is visible and sharp.',
     duplicate: 'This check appears to be a duplicate submission.',
     amount_mismatch: 'The entered amount does not match the amount read from the check.',
+    over_limit: 'This deposit exceeds your account contribution or deposit limit. Enter a lower amount and try again.',
+    contribution_limit: 'This deposit exceeds your account contribution limit. Enter a lower amount and try again.',
   };
   return reasonMap[normalized] || null;
 }
@@ -1295,9 +1292,19 @@ function transferFailureReason(transfer) {
   }
 }
 
+function transferFailureMessage(transfer) {
+  if (!transfer || !transfer.vendor_response) return '';
+  try {
+    const parsed = JSON.parse(transfer.vendor_response);
+    return parsed && parsed.message ? String(parsed.message) : '';
+  } catch (_) {
+    return '';
+  }
+}
+
 function buildFailureDetails(responseBody, transfer) {
   const reason = responseBody?.reason || transferFailureReason(transfer);
-  const message = responseBody?.message || responseBody?.error || '';
+  const message = responseBody?.message || transferFailureMessage(transfer) || responseBody?.error || '';
   const reasonLabel = reason ? titleCaseWords(String(reason).replace(/_/g, ' ')) : '';
   const reasonExplanation = reasonToExplanation(reason);
 
@@ -1457,12 +1464,7 @@ async function loadAccounts() {
     const sel = $('accountSelect');
     const currentVal = sel.value;
     sel.innerHTML = state.accounts.map(a => {
-      let label = a.display_name || a.id;
-      if (a.contribution_limit > 0) {
-        const rem = (a.contribution_remaining ?? (a.contribution_limit - (a.ytd_contribution || 0))).toFixed(0);
-        const lim = a.contribution_limit.toFixed(0);
-        label += ` ($${rem} of $${lim} left)`;
-      }
+      const label = a.display_name || a.id;
       return `<option value="${a.id}">${label}</option>`;
     }).join('');
     if (state.accounts.some(a => a.id === currentVal)) sel.value = currentVal;

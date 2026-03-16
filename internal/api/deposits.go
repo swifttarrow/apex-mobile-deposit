@@ -209,24 +209,24 @@ func (h *DepositHandler) ProcessDeposit(transferID string) error {
 
 	if err := h.fundingSvc.ValidateSession(t.AccountID); err != nil {
 		trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "session"})
-		h.rejectTransfer(t, "invalid session")
+		h.rejectTransfer(t, "invalid_session", "Session is invalid or missing.")
 		return nil
 	}
 	if err := h.fundingSvc.CheckEligibility(t.AccountID); err != nil {
 		trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "eligibility"})
-		h.rejectTransfer(t, "account not eligible")
+		h.rejectTransfer(t, "account_ineligible", "This account is not eligible for check deposit.")
 		return nil
 	}
 	if err := h.fundingSvc.CheckLimit(t.AccountID, t.Amount); err != nil {
 		trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "limit"})
-		h.rejectTransfer(t, "over limit")
+		h.rejectTransfer(t, "over_limit", "This deposit exceeds your account contribution or deposit limit.")
 		return nil
 	}
 	if t.TransactionID != "" {
 		if err := h.fundingSvc.CheckDuplicate(t.TransactionID); err != nil {
 			if errors.Is(err, funding.ErrDuplicate) {
 				trace.DepositTrace(t.ID, t.AccountID, "business_rules", map[string]interface{}{"source": depositSource, "result": "rejected", "rule": "duplicate"})
-				h.rejectTransfer(t, "duplicate")
+				h.rejectTransfer(t, "duplicate", "This check appears to be a duplicate submission.")
 				return nil
 			}
 		}
@@ -297,18 +297,29 @@ func (h *DepositHandler) ProcessOneJobHTTP(w http.ResponseWriter, r *http.Reques
 type vendorScoresJSON struct {
 	Status         string  `json:"status"`
 	Reason         string  `json:"reason,omitempty"`
+	Message        string  `json:"message,omitempty"`
 	IQScore        float64 `json:"iq_score,omitempty"`
 	MICRConfidence float64 `json:"micr_confidence,omitempty"`
 }
 
 func marshalVendorScores(r *vendor.VendorResponse) string {
-	v := vendorScoresJSON{Status: r.Status, Reason: r.Reason, IQScore: r.IQScore, MICRConfidence: r.MICRConfidence}
+	v := vendorScoresJSON{Status: r.Status, Reason: r.Reason, Message: r.Message, IQScore: r.IQScore, MICRConfidence: r.MICRConfidence}
 	b, _ := json.Marshal(v)
 	return string(b)
 }
 
 // rejectTransfer transitions a transfer to Rejected state.
-func (h *DepositHandler) rejectTransfer(t *transfer.Transfer, reason string) {
+func (h *DepositHandler) rejectTransfer(t *transfer.Transfer, reason, message string) {
+	if reason != "" {
+		payload := vendorScoresJSON{
+			Status:  "reject",
+			Reason:  reason,
+			Message: message,
+		}
+		if b, err := json.Marshal(payload); err == nil {
+			t.VendorResponse = string(b)
+		}
+	}
 	if err := t.Transition(transfer.StateRejected); err != nil {
 		log.Printf("reject transfer %s (%s): %v", t.ID, reason, err)
 		return

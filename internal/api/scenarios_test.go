@@ -333,6 +333,17 @@ func TestScenario_OverLimit(t *testing.T) {
 	if t2["state"] != "Rejected" {
 		t.Errorf("expected Rejected (over limit), got %v", t2["state"])
 	}
+	vendorResp, _ := t2["vendor_response"].(string)
+	if vendorResp == "" {
+		t.Fatalf("expected vendor_response to include over_limit reason")
+	}
+	var details map[string]interface{}
+	if err := json.Unmarshal([]byte(vendorResp), &details); err != nil {
+		t.Fatalf("expected valid vendor_response JSON, got error: %v", err)
+	}
+	if got := details["reason"]; got != "over_limit" {
+		t.Errorf("expected reason over_limit, got %v", got)
+	}
 }
 
 // Scenario 9: Return/reversal flow
