@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
 	"github.com/checkstream/checkstream/internal/api"
 	"github.com/checkstream/checkstream/internal/auth"
 	"github.com/checkstream/checkstream/internal/db"
@@ -24,6 +23,10 @@ import (
 	"github.com/checkstream/checkstream/internal/vendor"
 )
 
+// BuildVersion is set at build time via -ldflags "-X main.BuildVersion=..."
+// Used in GET /health so you can verify which build is deployed (e.g. curl https://your-app/health).
+var BuildVersion = "dev"
+
 //go:embed all:web/scenarios
 var scenarioFS embed.FS
 
@@ -36,6 +39,29 @@ var mobileFS embed.FS
 // wantsHTML returns true when the request Accept header prefers text/html (e.g. browser navigation).
 func wantsHTML(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
+// setEmbeddedFileHeaders sets Content-Type and Cache-Control for embedded UI assets.
+// No-cache on HTML/JS/CSS so deployed updates show without hard refresh; images get short cache.
+func setEmbeddedFileHeaders(w http.ResponseWriter, name string) {
+	noCache := "no-cache, no-store, must-revalidate"
+	switch {
+	case strings.HasSuffix(name, ".js"):
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Header().Set("Cache-Control", noCache)
+	case strings.HasSuffix(name, ".css"):
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.Header().Set("Cache-Control", noCache)
+	case strings.HasSuffix(name, ".png"):
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "max-age=300")
+	case strings.HasSuffix(name, ".jpg"), strings.HasSuffix(name, ".jpeg"):
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Cache-Control", "max-age=300")
+	default:
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", noCache)
+	}
 }
 
 // depoListOrPage serves deposit list API (JSON) or operator SPA (HTML) by content negotiation.
@@ -92,13 +118,14 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Health check
+	// Health check (includes build_version so you can verify deployed build: curl https://your-app/health)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
-			"status":  "ok",
-			"service": "checkdepot",
-			"version": "1.0.0",
+			"status":        "ok",
+			"service":       "checkdepot",
+			"version":       "1.0.0",
+			"build_version": BuildVersion,
 		})
 	})
 
@@ -133,14 +160,7 @@ func main() {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		switch {
-		case strings.HasSuffix(name, ".js"):
-			w.Header().Set("Content-Type", "application/javascript")
-		case strings.HasSuffix(name, ".css"):
-			w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		default:
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		}
+		setEmbeddedFileHeaders(w, name)
 		w.Write(b)
 	}
 
@@ -217,14 +237,7 @@ func main() {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		switch {
-		case strings.HasSuffix(name, ".js"):
-			w.Header().Set("Content-Type", "application/javascript")
-		case strings.HasSuffix(name, ".css"):
-			w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		default:
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		}
+		setEmbeddedFileHeaders(w, name)
 		w.Write(b)
 	}
 	mux.HandleFunc("GET /sandbox", sandboxHandler)
@@ -252,18 +265,7 @@ func main() {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		switch {
-		case strings.HasSuffix(name, ".js"):
-			w.Header().Set("Content-Type", "application/javascript")
-		case strings.HasSuffix(name, ".css"):
-			w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		case strings.HasSuffix(name, ".png"):
-			w.Header().Set("Content-Type", "image/png")
-		case strings.HasSuffix(name, ".jpg"), strings.HasSuffix(name, ".jpeg"):
-			w.Header().Set("Content-Type", "image/jpeg")
-		default:
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		}
+		setEmbeddedFileHeaders(w, name)
 		w.Write(b)
 	}
 	mux.HandleFunc("GET /mobile", mobileHandler)
