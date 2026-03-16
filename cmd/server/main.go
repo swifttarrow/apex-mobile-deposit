@@ -262,6 +262,17 @@ func main() {
 		}
 		b, err := fs.ReadFile(mobileRoot, name)
 		if err != nil {
+			// SPA deep-link fallback: serve index.html for mobile app routes without file extensions.
+			if wantsHTML(r) && !strings.Contains(name, ".") {
+				b, err = fs.ReadFile(mobileRoot, "index.html")
+				if err != nil {
+					http.Error(w, "not found", http.StatusNotFound)
+					return
+				}
+				setEmbeddedFileHeaders(w, "index.html")
+				w.Write(b)
+				return
+			}
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}

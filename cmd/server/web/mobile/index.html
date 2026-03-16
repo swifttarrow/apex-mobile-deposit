@@ -851,33 +851,39 @@ $('profileLogoutBtn').onclick = async () => {
   showLoginScreen();
 };
 
-// ── Hash routing (deterministic view state across refresh) ──
+// ── Path routing (deterministic view state across refresh) ──
 const VALID_TABS = ['scan', 'deposits', 'profile'];
 
-function parseRouteFromHash() {
-  const raw = location.hash.replace(/^#/, '').trim();
-  if (!raw) return { view: 'scan' };
+function getMobileBasePath() {
+  if (location.pathname === '/mobile' || location.pathname.startsWith('/mobile/')) return '/mobile';
+  return '/mobile';
+}
 
-  const normalized = raw.startsWith('/') ? raw : `/${raw}`;
-  const [pathPart, queryPart] = normalized.split('?');
-  const path = pathPart.replace(/\/+$/, '') || '/';
-  const params = new URLSearchParams(queryPart || '');
+function parseRouteFromLocation() {
+  const base = getMobileBasePath();
+  const rawPath = location.pathname.replace(/\/+$/, '');
+  const path = rawPath || '/';
+  const params = new URLSearchParams(location.search || '');
+  const withoutBase = path.startsWith(base) ? (path.slice(base.length) || '/') : path;
 
-  if (path === '/capture' || path === '/deposit' || path === '/scan') {
+  if (withoutBase === '/' || withoutBase === '/index.html') {
     return { view: 'scan' };
   }
-  if (path === '/activity' || path === '/deposits') {
+  if (withoutBase === '/capture' || withoutBase === '/deposit' || withoutBase === '/scan') {
+    return { view: 'scan' };
+  }
+  if (withoutBase === '/activity' || withoutBase === '/deposits') {
     return { view: 'deposits' };
   }
-  if (path === '/profile') {
+  if (withoutBase === '/profile') {
     return { view: 'profile' };
   }
-  if (path === '/deposits/status') {
+  if (withoutBase === '/deposits/status') {
     const transferId = params.get('id') || '';
     return transferId ? { view: 'deposit-status', transferId } : { view: 'deposits' };
   }
 
-  const statusMatch = path.match(/^\/deposits\/status\/([^/]+)$/);
+  const statusMatch = withoutBase.match(/^\/deposits\/status\/([^/]+)$/);
   if (statusMatch) {
     try {
       return { view: 'deposit-status', transferId: decodeURIComponent(statusMatch[1]) };
@@ -889,26 +895,55 @@ function parseRouteFromHash() {
   return { view: 'scan' };
 }
 
-function routeToHash(route) {
-  if (!route || !route.view) return '#scan';
-  if (route.view === 'scan') return '#scan';
-  if (route.view === 'deposits') return '#deposits';
-  if (route.view === 'profile') return '#profile';
-  if (route.view === 'deposit-status' && route.transferId) {
-    return `#deposits/status/${encodeURIComponent(route.transferId)}`;
+function parseLegacyHashRoute() {
+  const raw = location.hash.replace(/^#/, '').trim();
+  if (!raw) return null;
+  const normalized = raw.startsWith('/') ? raw : `/${raw}`;
+  const [pathPart, queryPart] = normalized.split('?');
+  const path = pathPart.replace(/\/+$/, '') || '/';
+  const params = new URLSearchParams(queryPart || '');
+
+  if (path === '/capture' || path === '/deposit' || path === '/scan') return { view: 'scan' };
+  if (path === '/activity' || path === '/deposits') return { view: 'deposits' };
+  if (path === '/profile') return { view: 'profile' };
+  if (path === '/deposits/status') {
+    const transferId = params.get('id') || '';
+    return transferId ? { view: 'deposit-status', transferId } : { view: 'deposits' };
   }
-  return '#scan';
+  const statusMatch = path.match(/^\/deposits\/status\/([^/]+)$/);
+  if (statusMatch) {
+    try {
+      return { view: 'deposit-status', transferId: decodeURIComponent(statusMatch[1]) };
+    } catch (_) {
+      return { view: 'deposits' };
+    }
+  }
+  return { view: 'scan' };
+}
+
+function routeToPath(route) {
+  const base = getMobileBasePath();
+  if (!route || !route.view) return `${base}/scan`;
+  if (route.view === 'scan') return `${base}/scan`;
+  if (route.view === 'deposits') return `${base}/deposits`;
+  if (route.view === 'profile') return `${base}/profile`;
+  if (route.view === 'deposit-status' && route.transferId) {
+    return `${base}/deposits/status/${encodeURIComponent(route.transferId)}`;
+  }
+  return `${base}/scan`;
 }
 
 function navigateTo(route, options = {}) {
   const { replace = false } = options;
-  const targetHash = routeToHash(route);
-  if (location.hash !== targetHash) {
+  const targetPath = routeToPath(route);
+  const currentPath = `${location.pathname}${location.search}`;
+  if (currentPath !== targetPath) {
     if (replace) {
-      history.replaceState(null, '', targetHash);
+      history.replaceState(null, '', targetPath);
       handleRouteChange();
     } else {
-      location.hash = targetHash;
+      history.pushState(null, '', targetPath);
+      handleRouteChange();
     }
     return;
   }
@@ -969,7 +1004,7 @@ async function loadAndShowDepositStatus(transferId) {
 
 function applyRoute(route) {
   if (!state.loggedIn) return;
-  const targetRoute = route || parseRouteFromHash();
+  const targetRoute = route || parseRouteFromLocation();
 
   if (targetRoute.view === 'scan') {
     stopStatusPolling();
@@ -996,17 +1031,24 @@ function applyRoute(route) {
 }
 
 function handleRouteChange() {
-  if (!location.hash) {
-    history.replaceState(null, '', '#scan');
+  const base = getMobileBasePath();
+  const legacyHashRoute = parseLegacyHashRoute();
+  if (legacyHashRoute) {
+    history.replaceState(null, '', routeToPath(legacyHashRoute));
+    applyRoute(legacyHashRoute);
+    return;
   }
-  applyRoute(parseRouteFromHash());
+  if (location.pathname === '/mobile/' || location.pathname === '/mobile') {
+    history.replaceState(null, '', `${base}/scan`);
+  }
+  applyRoute(parseRouteFromLocation());
 }
 
 $('tabCapture').onclick  = () => navigateTo({ view: 'scan' });
 $('tabDeposits').onclick = () => navigateTo({ view: 'deposits' });
 $('tabProfile').onclick  = () => navigateTo({ view: 'profile' });
 
-window.addEventListener('hashchange', handleRouteChange);
+window.addEventListener('popstate', handleRouteChange);
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1016,16 +1058,41 @@ function showScreen(id) {
 // ── Capture Screen ──
 document.querySelectorAll('.scenario-chip').forEach(chip => {
   chip.onclick = () => {
-    document.querySelectorAll('.scenario-chip').forEach(c => c.classList.remove('selected'));
-    chip.classList.add('selected');
-    state.selectedCheck = parseInt(chip.dataset.check, 10);
-    state.selectedScenario = chip.dataset.scenario;
+    selectScenario(chip.dataset.scenario, parseInt(chip.dataset.check, 10), { autoCaptureFront: true });
+  };
+});
+
+function selectScenario(scenario, checkNumber, options = {}) {
+  const { autoCaptureFront = false } = options;
+  const chips = Array.from(document.querySelectorAll('.scenario-chip'));
+  const target = chips.find(chip => chip.dataset.scenario === scenario);
+  chips.forEach(c => c.classList.remove('selected'));
+  if (target) {
+    target.classList.add('selected');
+  }
+
+  if (Number.isFinite(checkNumber) && checkNumber > 0) {
+    state.selectedCheck = checkNumber;
+  } else if (target) {
+    const parsedCheck = parseInt(target.dataset.check, 10);
+    if (Number.isFinite(parsedCheck) && parsedCheck > 0) {
+      state.selectedCheck = parsedCheck;
+    }
+  }
+
+  if (target) {
+    state.selectedScenario = target.dataset.scenario;
+  } else if (scenario) {
+    state.selectedScenario = scenario;
+  }
+
+  if (autoCaptureFront) {
     // Selecting a scenario should immediately reflect the front image.
     setCaptured($('frontBox'), 'front');
     state.frontCaptured = true;
-    updateSubmitBtn();
-  };
-});
+  }
+  updateSubmitBtn();
+}
 
 function setCaptured(box, side) {
   const url = checkImgUrl(state.selectedCheck, side);
@@ -1156,7 +1223,7 @@ function startStatusPolling(transferId) {
       if (!r.ok) return;
       const t = await r.json();
       state.currentTransfer = t;
-      const route = parseRouteFromHash();
+      const route = parseRouteFromLocation();
       if (route.view === 'deposit-status' && String(route.transferId) === String(t.id)) {
         const status = getDisplayStatus(t.state);
         showStatusScreen(t, status.kind === 'error' ? 'error' : 'success', status.kind === 'error' ? buildFailureDetails(null, t) : null, { syncRoute: false });
@@ -1346,11 +1413,35 @@ function resetCaptureBoxes() {
   updateSubmitBtn();
 }
 
+function prepareIQAResubmission() {
+  const transfer = state.currentTransfer;
+  if (!transfer) return;
+
+  // Carry forward details from the failed deposit so users can quickly retry.
+  const amount = Number.parseFloat(transfer.amount);
+  if (Number.isFinite(amount) && amount > 0) {
+    $('amountInput').value = String(amount);
+  }
+  if (transfer.account_id && $('accountSelect')) {
+    const accountSelect = $('accountSelect');
+    const hasAccount = Array.from(accountSelect.options).some(o => o.value === transfer.account_id);
+    if (hasAccount) {
+      accountSelect.value = transfer.account_id;
+    }
+  }
+
+  // Reset to a clean scenario for retake/re-submit to avoid repeated forced IQA failures.
+  selectScenario('clean_pass', 1, { autoCaptureFront: false });
+  updateAccountLimitHint();
+  updateAmountValidation(false);
+}
+
 $('statusBackBtn').onclick = () => { stopStatusPolling(); navigateTo({ view: 'scan' }); };
 
 $('statusRetakeBtn').onclick = () => {
   stopStatusPolling();
   resetCaptureBoxes();
+  prepareIQAResubmission();
   navigateTo({ view: 'scan' });
 };
 
