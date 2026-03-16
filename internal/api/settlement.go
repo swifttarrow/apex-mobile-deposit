@@ -179,7 +179,8 @@ func (h *SettlementHandler) DownloadReport(w http.ResponseWriter, r *http.Reques
 	w.Write(data)
 }
 
-// DownloadReportX9 handles GET /settlement/reports/{id}/x9. Returns X9 ICL file or 501 if not implemented.
+// DownloadReportX9 handles GET /settlement/reports/{id}/x9. Returns an X9-style text summary file (human-readable).
+// Full X9.37 ICL binary format can be added later via moov-io/imagecashletter.
 func (h *SettlementHandler) DownloadReportX9(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -196,9 +197,9 @@ func (h *SettlementHandler) DownloadReportX9(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusNotFound, "report not found")
 		return
 	}
-	// X9 ICL generation not yet implemented; return 501 so UI can show optional download
-	writeJSON(w, http.StatusNotImplemented, map[string]interface{}{
-		"error":   "X9 ICL generation not implemented",
-		"message": "Use JSON download for now. X9 ICL export can be added via moov-io/imagecashletter.",
-	})
+	data := settlement.X9TextSummary(report)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="settlement-`+id+`.x9"`)
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }

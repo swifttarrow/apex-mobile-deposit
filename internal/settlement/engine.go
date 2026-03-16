@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/checkstream/checkstream/internal/ledger"
@@ -84,11 +85,13 @@ type ReportSummary struct {
 
 // Status holds settlement overview for the operator UI.
 type Status struct {
-	UnsettledCount  int     `json:"unsettled_count"`
-	UnsettledAmount float64 `json:"unsettled_amount"`
-	SettledCount    int     `json:"settled_count"`
-	SettledAmount   float64 `json:"settled_amount"`
-	LastReportAt    string  `json:"last_report_at,omitempty"` // RFC3339 when last report was generated
+	UnsettledCount           int     `json:"unsettled_count"`
+	UnsettledAmount          float64 `json:"unsettled_amount"`
+	SettledCount             int     `json:"settled_count"`
+	SettledAmount            float64 `json:"settled_amount"`
+	LastReportAt             string  `json:"last_report_at,omitempty"`              // RFC3339 when last report was generated
+	UnreportedSettlementCount int     `json:"unreported_settlement_count,omitempty"`  // Completed transfers not yet in a generated report
+	UnreportedSettlementAmount float64 `json:"unreported_settlement_amount,omitempty"`
 }
 
 // Status returns counts and amounts for FundsPosted (pending settlement) and Completed (settled).
@@ -108,33 +111,42 @@ func (e *Engine) Status() (*Status, error) {
 	for _, t := range settled {
 		settledAmt += t.Amount
 	}
+	unreportedCount, unreportedAmt, _ := e.transferRepo.CountCompletedTransfersNotInReport()
 	lastReport, _ := e.readLastReportAt()
 	var lastReportStr string
 	if !lastReport.IsZero() {
 		lastReportStr = lastReport.Format(time.RFC3339)
 	}
 	return &Status{
-		UnsettledCount:  len(unsettled),
-		UnsettledAmount: unsettledAmt,
-		SettledCount:    len(settled),
-		SettledAmount:   settledAmt,
-		LastReportAt:    lastReportStr,
+		UnsettledCount:            len(unsettled),
+		UnsettledAmount:           unsettledAmt,
+		SettledCount:              len(settled),
+		SettledAmount:             settledAmt,
+		UnreportedSettlementCount: unreportedCount,
+		UnreportedSettlementAmount: unreportedAmt,
+		LastReportAt:              lastReportStr,
 	}, nil
 }
 
-// ListReports returns all previous settlement batches (reports), newest first.
+// ReportBatchIDPrefix is the prefix for manually generated report batch IDs. Only these appear in "Previous settlement reports."
+const ReportBatchIDPrefix = "report-"
+
+// ListReports returns only manually generated settlement reports (batches with id "report-*"), newest first.
+// Cron-run batches (UUIDs) are not included so the list reflects only operator-generated reports.
 func (e *Engine) ListReports() ([]ReportSummary, error) {
 	batches, err := e.transferRepo.ListSettlementBatches()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]ReportSummary, len(batches))
+	var out []ReportSummary
 	for i := range batches {
-		out[i] = ReportSummary{
-			BatchID:         batches[i].BatchID,
-			SettlementAckAt:  batches[i].SettlementAckAt,
-			Count:           batches[i].Count,
-			TotalAmount:     batches[i].TotalAmount,
+		if len(batches[i].BatchID) >= len(ReportBatchIDPrefix) && batches[i].BatchID[:len(ReportBatchIDPrefix)] == ReportBatchIDPrefix {
+			out = append(out, ReportSummary{
+				BatchID:         batches[i].BatchID,
+				SettlementAckAt:  batches[i].SettlementAckAt,
+				Count:           batches[i].Count,
+				TotalAmount:     batches[i].TotalAmount,
+			})
 		}
 	}
 	return out, nil
@@ -346,6 +358,17 @@ func (e *Engine) ReportSinceLastReport() (report *SettlementFile, lastReportAt t
 		totalAmount += t.Amount
 	}
 	report.TotalAmount = totalAmount
+
+	// Reassign these transfers to this report batch so they appear under "Previous settlement reports"
+	// (otherwise they keep their cron-assigned batch IDs and only cron batches would be listed)
+	for _, t := range transfers {
+		t.SettlementBatchID = report.BatchID
+		t.SettlementAckAt = report.CreatedAt
+		if err := e.transferRepo.UpdateTransferState(t); err != nil {
+			log.Printf("settlement: update transfer %s for report batch: %v", t.ID, err)
+		}
+	}
+
 	if err := e.writeLastReportAt(now); err != nil {
 		return nil, time.Time{}, fmt.Errorf("write last report at: %w", err)
 	}
@@ -377,4 +400,40 @@ func (e *Engine) writeLastReportAt(t time.Time) error {
 		return err
 	}
 	return os.WriteFile(lastReportAtFile, []byte(t.UTC().Format(time.RFC3339)), 0644)
+}
+
+// X9TextSummary returns a plain-text X9-style cash letter summary for the report (human-readable, not full X9.37 ICL).
+// Serves as a downloadable settlement summary until full ICL support is added via moov-io/imagecashletter.
+func X9TextSummary(report *SettlementFile) []byte {
+	var b strings.Builder
+	b.WriteString("X9 SETTLEMENT CASH LETTER SUMMARY\n")
+	b.WriteString(strings.Repeat("=", 50) + "\n")
+	b.WriteString(fmt.Sprintf("Batch ID:     %s\n", report.BatchID))
+	b.WriteString(fmt.Sprintf("Created At:   %s\n", report.CreatedAt))
+	b.WriteString(fmt.Sprintf("Item Count:   %d\n", report.TotalCount))
+	b.WriteString(fmt.Sprintf("Total Amount: %.2f\n", report.TotalAmount))
+	b.WriteString(strings.Repeat("-", 50) + "\n")
+	b.WriteString("Transfer ID   Routing     Account      Check#   Amount\n")
+	b.WriteString(strings.Repeat("-", 50) + "\n")
+	for _, t := range report.Transfers {
+		tid := t.TransferID
+		if len(tid) > 12 {
+			tid = tid[:12]
+		}
+		routing := t.MICRRouting
+		if len(routing) > 9 {
+			routing = routing[:9]
+		}
+		acct := t.MICRAccount
+		if len(acct) > 12 {
+			acct = acct[:12]
+		}
+		checkNum := t.CheckNumber
+		if len(checkNum) > 8 {
+			checkNum = checkNum[:8]
+		}
+		b.WriteString(fmt.Sprintf("%-12s %-9s   %-12s %-8s %10.2f\n", tid, routing, acct, checkNum, t.Amount))
+	}
+	b.WriteString(strings.Repeat("=", 50) + "\n")
+	return []byte(b.String())
 }

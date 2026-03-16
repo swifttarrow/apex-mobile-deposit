@@ -318,6 +318,20 @@ type SettlementBatchSummary struct {
 	TotalAmount float64
 }
 
+// CountCompletedTransfersNotInReport returns the count and total amount of Completed transfers
+// that are not yet in a manually generated report (settlement_batch_id not starting with "report-").
+func (r *Repository) CountCompletedTransfersNotInReport() (count int, totalAmount float64, err error) {
+	query := `
+		SELECT COUNT(*), COALESCE(SUM(amount), 0)
+		FROM transfers
+		WHERE state = ? AND (settlement_batch_id = '' OR settlement_batch_id NOT LIKE 'report-%')`
+	err = r.db.QueryRow(query, string(StateCompleted)).Scan(&count, &totalAmount)
+	if err != nil {
+		return 0, 0, fmt.Errorf("count unreported settlements: %w", err)
+	}
+	return count, totalAmount, nil
+}
+
 // ListSettlementBatches returns distinct settlement batches (Completed transfers grouped by settlement_batch_id), newest first.
 func (r *Repository) ListSettlementBatches() ([]SettlementBatchSummary, error) {
 	query := `
